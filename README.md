@@ -1,125 +1,100 @@
 # Jarvis-Phoenix
 
-Jarvis-Phoenix is a cross-platform evolution of [Jarvis-MLX](https://github.com/huwprosser/jarvis-mlx). The assistant's new user-facing identity is **ULTRON**. The goal is a practical AI assistant across desktop and mobile environments, with local/offline AI as a first-class option and optional cloud providers.
-
-> Development is happening on the `phoenix-upgrade` branch. The `main` branch is being kept as the preserved baseline.
+Jarvis-Phoenix is a cross-platform evolution of [Jarvis-MLX](https://github.com/huwprosser/jarvis-mlx). The assistant's user-facing identity is **ULTRON**. Development happens on `phoenix-upgrade`; `main` remains the preserved baseline.
 
 ## Current status
 
-**Gemini-first hybrid engine and first responsive ULTRON browser interface implemented; live inference and platform validation are ongoing.** The original MLX implementation remains alongside the cross-platform runtime.
+**Gemini-first hybrid assistant with a voice-only browser interface.** The interface uses browser speech recognition for microphone input and Gemini-generated TTS audio for ULTRON's spoken replies. It does not use the phone's built-in speech synthesizer.
 
-### Current capabilities
+### Voice interface
 
-- Cross-platform Python entry point: `python phoenix.py`
-- Responsive ULTRON browser UI: `python phoenix.py --ui`
-- UI works in a modern browser on Android and Windows; install it as a PWA where browser support allows
-- ULTRON dark metallic interface with silver surfaces and red accents
-- Gemini cloud configuration using `GEMINI_API_KEY`
-- Gemini is tried first when an API key is configured
-- Automatic fallback to local Ollama when the cloud request fails
-- Local model remains optional and configurable; default future model is `llama3.2:1b`
-- OpenAI-compatible chat-completions adapter using Google's documented Gemini compatibility endpoint
-- In-session conversation context shared with whichever provider responds
-- Bounded conversation history, configurable with `PHOENIX_HISTORY_MESSAGES` (default: 20 messages)
-- Provider health check: `python phoenix.py --check`
-- Core provider integration and UI server use Python's standard library
+- Launch with `python phoenix.py --ui` and open `http://127.0.0.1:8765`
+- Voice-only screen: no text composer or visible chat transcript
+- Tap the central microphone to start a hands-free voice session; tap End Session to stop
+- Browser speech recognition captures the user's speech; availability depends on the browser and its speech-recognition service
+- Gemini 3.8 Flash TTS generates ULTRON's spoken audio using the configured voice persona
+- Default voice: **Algenib**, with a deep, resonant, calm and authoritative delivery direction
+- The red reactor analyses the generated playback audio for amplitude and estimated pitch, then animates in sync
+- The browser does not fall back to Android or Windows device TTS
+- Requires microphone permission, browser speech-recognition support, a working Gemini API key, and access to the configured Gemini chat and TTS models
 
-Conversation history currently exists only in memory and is cleared when the process exits. Persistent memory, image/video vision, microphone input, speech-to-text, text-to-speech, and permission-controlled tools are not implemented yet.
+### Hybrid AI engine
 
-## Run the ULTRON interface
+- Gemini cloud is preferred for conversational reasoning
+- Automatic fallback to local Ollama when cloud chat fails
+- Local model remains optional; default future model is `llama3.2:1b`
+- In-session conversation context is held in memory and cleared when the server exits
+- Python standard library used for HTTP server and Gemini REST calls
 
-Keep the Gemini key in your current shell, then run:
+## Run on Android (Termux) or Windows
 
-~~~bash
-python phoenix.py --check
-python phoenix.py --ui
-~~~
-
-Open **http://127.0.0.1:8765** in Chrome or another modern browser on the same device. On Android with Termux, leave the Termux server running while using the browser. On Windows, the same command starts the local interface; open the address in your browser. The server binds to localhost by default so it is not exposed to the local network.
-
-To choose another port:
-
-~~~bash
-python phoenix.py --ui --port 9000
-~~~
-
-The interface is responsive and can be installed as a PWA from the browser's install/add-to-home-screen menu. The UI shell may be cached, but live AI chat still requires the Python server and an available provider.
-
-## Configure Gemini (cloud-first)
-
-In Termux or a Windows terminal, set your key in the current shell:
+Keep the Gemini key in your current shell:
 
 ~~~bash
 export GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
+python phoenix.py --ui
 ~~~
 
-In PowerShell, use:
+PowerShell:
 
 ~~~powershell
 $env:GEMINI_API_KEY = "YOUR_GEMINI_API_KEY"
+python phoenix.py --ui
 ~~~
 
-The default cloud endpoint is Google's OpenAI-compatible Gemini endpoint, and the default model is `gemini-3.8-flash`. These defaults can be overridden with `PHOENIX_CLOUD_BASE_URL` and `PHOENIX_CLOUD_MODEL`. The API key is read from `GEMINI_API_KEY`; `PHOENIX_CLOUD_API_KEY` is also accepted as a fallback. Keep keys in environment variables and never commit them to GitHub.
+Open `http://127.0.0.1:8765` in a recent Chrome browser. Keep the Python server running. Grant microphone permission when prompted. On Android, use Chrome rather than an embedded browser if speech recognition is unavailable.
 
-The health check confirms that the key is configured; it does not make a live Gemini request. Sending a chat message tests connectivity, model access, and quota. API usage and limits depend on the Google AI Studio project and model.
+## Voice configuration
 
-## Optional local Llama later
+Environment overrides:
 
-No local model needs to be downloaded now. The local provider is kept ready for a future Ollama installation. Its default model setting is `llama3.2:1b`; change it with:
-
-~~~bash
-export PHOENIX_LOCAL_MODEL="llama3.2:1b"
-~~~
-
-After installing Ollama and downloading the selected model, start the Ollama service and ULTRON can use it as a fallback if Gemini is unavailable. You can override the local endpoint with `PHOENIX_LOCAL_BASE_URL`.
-
-## Optional conversation settings
-
+- `PHOENIX_TTS_MODEL` (default: `gemini-3.8-flash-tts`)
+- `PHOENIX_TTS_VOICE` (default: `Algenib`)
+- `PHOENIX_TTS_STYLE` (default: deep, resonant, calm, authoritative cinematic delivery)
+- `PHOENIX_CLOUD_MODEL` (default: `gemini-3.8-flash`)
 - `PHOENIX_REQUEST_TIMEOUT` (default: `90` seconds)
-- `PHOENIX_HISTORY_MESSAGES` (default: `20` messages)
 
-## Run tests
+The chat model and TTS model are separate. A key being configured does not prove either model is reachable; a real voice turn tests both services. Gemini API usage, model availability and quota depend on the Google AI Studio project.
+
+## Current limitations
+
+- Browser speech recognition is browser-provided and may depend on network connectivity; it is not a custom offline STT engine.
+- This is a browser/PWA foundation, not yet a native Android APK or Windows executable.
+- Local/offline speech recognition and local speech generation are not yet implemented.
+- Image/video vision, persistent memory, and permission-controlled computer actions remain on the roadmap.
+- Voice quality and real-time performance must be validated on the target phone and Windows device before release.
+
+## Tests
 
 ~~~bash
 python -m pytest -v
 ~~~
 
-Pytest is configured to run the cross-platform suite in `tests/`. The original Apple Silicon-specific tests remain in `test/` and are not part of the default cross-platform test run.
+The default test suite covers the cross-platform Python core. Original Apple Silicon-specific tests remain in `test/`.
 
 ## Repository layout
 
-- `main.py` — original MLX-based assistant, retained during migration
-- `phoenix.py` — cross-platform entry point and UI launcher
-- `app/config.py` — environment configuration and Gemini defaults
-- `app/providers.py` — local and OpenAI-compatible cloud adapters
-- `app/assistant.py` — provider routing, fallback, and session context
-- `app/webui.py` — lightweight local web server for the browser UI
-- `ui/` — responsive ULTRON PWA interface
+- `main.py` — original MLX implementation retained as reference
+- `phoenix.py` — cross-platform entry point
+- `app/config.py` — environment configuration
+- `app/providers.py` — chat providers
+- `app/speech.py` — Gemini TTS audio generation
+- `app/assistant.py` — provider routing and conversation context
+- `app/webui.py` — local API and static server
+- `ui/` — ULTRON voice-only browser interface
 - `tests/` — cross-platform tests
-- `test/` — original MLX/TTS tests
 
 ## Upgrade roadmap
 
-1. Cross-platform core and provider abstraction
-2. Hybrid routing, local fallback, and in-session conversation context
-3. Gemini cloud integration and provider reliability
-4. Responsive ULTRON interface for Android and Windows
-5. Cross-platform audio capture and device selection
-6. Speech-to-text with configurable lightweight models
-7. Text-to-speech with an offline engine
-8. Vision, persistent memory, and permission-controlled tools
-9. Windows-first testing, then Linux/macOS and supported mobile validation
-10. Packaging, documentation, and release
-
-## Design principles
-
-- No mandatory paid API or subscription
-- No mandatory GPU
-- Local models remain available for offline use after download
-- Cloud services are optional and replaceable
-- Keep the original implementation available until migration is verified
-- Do not claim platform support or test results without actually testing them
+1. Cross-platform hybrid AI core
+2. Gemini chat and optional local Llama fallback
+3. Voice-only ULTRON browser interface
+4. Gemini-generated speech and pitch-reactive reactor
+5. Improve microphone capture and interruption handling
+6. Offline STT/TTS options
+7. Vision, persistent memory and permission-controlled tools
+8. Native Android and Windows packaging after platform validation
 
 ## Upstream acknowledgement
 
-This project builds on the work in [huwprosser/jarvis-mlx](https://github.com/huwprosser/jarvis-mlx). The original MLX implementation is retained as a reference during the cross-platform migration. Check the upstream repository's license and preserve all required notices before redistributing or relicensing inherited code.
+This project builds on [huwprosser/jarvis-mlx](https://github.com/huwprosser/jarvis-mlx). Check the upstream repository's license and preserve all required notices before redistributing or relicensing inherited code.
