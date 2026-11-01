@@ -1,4 +1,4 @@
-"""Jarvis-Phoenix cross-platform entry point (Phase 1)."""
+"""Jarvis-Phoenix cross-platform hybrid AI entry point."""
 from __future__ import annotations
 
 import argparse
@@ -21,7 +21,9 @@ def main() -> int:
         return 0
 
     print("\nJARVIS-PHOENIX")
-    print("Cross-platform assistant foundation")
+    print("Hybrid cross-platform AI assistant")
+    print("Cloud is preferred when configured; local Ollama is the fallback.")
+    print("Conversation context lasts for this session only.")
     print("Type 'exit' or 'quit' to close.\n")
 
     while True:
