@@ -21,8 +21,8 @@ def main() -> int:
         return 0
 
     print("\nJARVIS-PHOENIX")
-    print("Hybrid cross-platform AI assistant")
-    print("Cloud is preferred when configured; local Ollama is the fallback.")
+    print("Gemini-first hybrid AI assistant")
+    print("Gemini cloud is preferred; local Ollama/Llama is an optional fallback.")
     print("Conversation context lasts for this session only.")
     print("Type 'exit' or 'quit' to close.\n")
 
