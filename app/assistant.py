@@ -57,7 +57,7 @@ class Assistant:
         if not match:
             return
         content = match.group(1).strip()
-        content = re.sub(r"^(?:in|to) (?:the )?cloud\\s*[:,-]?\\s*", "", content, flags=re.IGNORECASE)
+        content = re.sub(r"^(?:in|to) (?:the )?cloud\s*[:,-]?\\s*", "", content, flags=re.IGNORECASE)
         if not content:
             return
         cloud_approved = bool(re.search(r"\b(?:cloud|sync)\b", prompt, re.IGNORECASE))
