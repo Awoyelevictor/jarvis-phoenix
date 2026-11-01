@@ -4,7 +4,7 @@ Jarvis-Phoenix is a cross-platform evolution of [Jarvis-MLX](https://github.com/
 
 ## Current status
 
-**Gemini-first hybrid assistant with a voice-only browser interface.** The interface uses browser speech recognition for microphone input and Gemini-generated TTS audio for ULTRON's spoken replies. It does not use the phone's built-in speech synthesizer.
+**Cloud-first hybrid assistant with a voice-only browser interface.** OpenRouter or Gemini can power chat; Gemini-generated TTS remains a separate speech service. The interface uses browser speech recognition for microphone input and generated audio for ULTRON's spoken replies. It does not use the phone's built-in speech synthesizer.
 
 ### Voice interface
 
@@ -16,45 +16,68 @@ Jarvis-Phoenix is a cross-platform evolution of [Jarvis-MLX](https://github.com/
 - Default voice: **Algenib**, with a deep, resonant, calm and authoritative delivery direction
 - The red reactor analyses the generated playback audio for amplitude and estimated pitch, then animates in sync
 - The browser does not fall back to Android or Windows device TTS
-- Requires microphone permission, browser speech-recognition support, a working Gemini API key, and access to the configured Gemini chat and TTS models
+- Requires microphone permission, browser speech-recognition support, and a Gemini API key for generated speech
 
-### Hybrid AI engine
+### AI engine
 
-- Gemini cloud is preferred for conversational reasoning
+- OpenRouter or Gemini can power cloud chat through the OpenAI-compatible chat-completions API
+- OpenRouter free router (`openrouter/free`) is the default model when the OpenRouter base URL is selected
+- Gemini remains available as a chat provider by setting its base URL and model
+- Gemini TTS uses its own key, independently from the chat provider
 - Automatic fallback to local Ollama when cloud chat fails
 - Local model remains optional; default future model is `llama3.2:1b`
 - In-session conversation context is held in memory and cleared when the server exits
-- Python standard library used for HTTP server and Gemini REST calls
+- Python standard library used for HTTP server and REST calls
 
 ## Run on Android (Termux) or Windows
 
-Keep the Gemini key in your current shell:
+### OpenRouter chat + Gemini voice
+
+Set your OpenRouter key for chat and retain your Gemini key for voice generation:
 
 ~~~bash
+export OPENROUTER_API_KEY="YOUR_OPENROUTER_API_KEY"
 export GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
+export PHOENIX_CLOUD_BASE_URL="https://openrouter.ai/api/v1"
+export PHOENIX_CLOUD_MODEL="openrouter/free"
 python phoenix.py --ui
 ~~~
 
 PowerShell:
 
 ~~~powershell
+$env:OPENROUTER_API_KEY = "YOUR_OPENROUTER_API_KEY"
 $env:GEMINI_API_KEY = "YOUR_GEMINI_API_KEY"
+$env:PHOENIX_CLOUD_BASE_URL = "https://openrouter.ai/api/v1"
+$env:PHOENIX_CLOUD_MODEL = "openrouter/free"
 python phoenix.py --ui
 ~~~
 
 Open `http://127.0.0.1:8765` in a recent Chrome browser. Keep the Python server running. Grant microphone permission when prompted. On Android, use Chrome rather than an embedded browser if speech recognition is unavailable.
 
-## Voice configuration
+### Gemini chat instead
 
-Environment overrides:
+~~~bash
+export GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
+unset OPENROUTER_API_KEY
+unset PHOENIX_CLOUD_BASE_URL
+unset PHOENIX_CLOUD_MODEL
+python phoenix.py --ui
+~~~
 
+## Configuration
+
+- `OPENROUTER_API_KEY` — OpenRouter chat key (takes priority for cloud chat)
+- `GEMINI_API_KEY` — Gemini TTS key; also used for chat if OpenRouter is not selected
+- `PHOENIX_TTS_API_KEY` — optional separate Gemini TTS key
+- `PHOENIX_CLOUD_BASE_URL` — cloud chat base URL
+- `PHOENIX_CLOUD_MODEL` — chat model ID; defaults to `openrouter/free` for OpenRouter and `gemini-3.8-flash` for Gemini
 - `PHOENIX_TTS_MODEL` (default: `gemini-3.8-flash-tts`)
 - `PHOENIX_TTS_VOICE` (default: `Algenib`)
 - `PHOENIX_TTS_STYLE` (default: deep, resonant, calm, authoritative cinematic delivery)
-- `PHOENIX_CLOUD_MODEL` (default: `gemini-3.8-flash`)
 - `PHOENIX_REQUEST_TIMEOUT` (default: `90` seconds)
 
-The chat model and TTS model are separate. A key being configured does not prove either model is reachable; a real voice turn tests both services. Gemini API usage, model availability and quota depend on the Google AI Studio project.
+OpenRouter's free models have low rate limits and availability can vary. The free router selects from currently available free models; a successful API key setup does not guarantee every request will be served. See [OpenRouter free models](https://openrouter.ai/collections/free-models).
 
 ## Current limitations
 
@@ -87,7 +110,7 @@ The default test suite covers the cross-platform Python core. Original Apple Sil
 ## Upgrade roadmap
 
 1. Cross-platform hybrid AI core
-2. Gemini chat and optional local Llama fallback
+2. OpenRouter/Gemini cloud chat and optional local Llama fallback
 3. Voice-only ULTRON browser interface
 4. Gemini-generated speech and pitch-reactive reactor
 5. Improve microphone capture and interruption handling
