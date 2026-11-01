@@ -107,7 +107,13 @@ class MemoryStore:
                 (item["id"], item["owner_id"], item["memory_type"], item["content"], int(item["approved_for_cloud_sync"]), now, now),
             )
         if item["approved_for_cloud_sync"] and self.cloud_configured:
-            self._cloud_request("POST", "ultron_memories?on_conflict=id", [item])
+            try:
+                self._cloud_request("POST", "ultron_memories?on_conflict=id", [item])
+                item["cloud_synced"] = True
+            except RuntimeError:
+                item["cloud_synced"] = False
+        else:
+            item["cloud_synced"] = False
         return item
 
     def list(self, limit: int = 40) -> list[dict]:
@@ -117,6 +123,26 @@ class MemoryStore:
                 (self.owner_id, max(1, min(limit, 100))),
             ).fetchall()
         return [dict(row) for row in rows]
+
+    def delete(self, memory_id: str) -> bool:
+        with self._connect() as db:
+            row = db.execute(
+                "select id, approved_for_cloud_sync from memories where id = ? and owner_id = ?",
+                (memory_id, self.owner_id),
+            ).fetchone()
+            if row is None:
+                return False
+            db.execute("delete from memories where id = ? and owner_id = ?", (memory_id, self.owner_id))
+        if row["approved_for_cloud_sync"] and self.cloud_configured:
+            try:
+                self._cloud_request(
+                    "DELETE",
+                    f"ultron_memories?id=eq.{quote(memory_id)}&owner_id=eq.{quote(self.owner_id)}",
+                )
+            except RuntimeError:
+                # Local deletion succeeds; cloud cleanup can be retried separately.
+                pass
+        return True
 
     def context(self, limit: int = 20) -> list[str]:
         local = self.list(limit)
@@ -134,7 +160,6 @@ class MemoryStore:
                         local.append(item)
                         seen.add(item["content"])
             except RuntimeError:
-                # Local memory remains available when the cloud is offline.
                 pass
         return [f"- {item['memory_type']}: {item['content']}" for item in local[:limit]]
 
