@@ -47,7 +47,7 @@ class Assistant:
             ),
         }
 
-    def _remember_explicit_request(self, prompt: str) -> None:
+    def _remember_explicit_request(self, prompt: str) -> str:
         import re
         match = re.match(
             r"^(?:ultron[, ]+)?(?:remember(?: that| this)?|save(?: this)?(?: to (?:my )?(?:memory|cloud))?)(?:\s*[:,-]?\s*)(.+)$",
@@ -55,27 +55,34 @@ class Assistant:
             flags=re.IGNORECASE | re.DOTALL,
         )
         if not match:
-            return
+            return ""
         content = match.group(1).strip()
         content = re.sub(r"^(?:in|to) (?:the )?cloud\s*[:,-]?\s*", "", content, flags=re.IGNORECASE)
         if not content:
-            return
+            return ""
         cloud_approved = bool(re.search(r"\b(?:cloud|sync)\b", prompt, re.IGNORECASE))
         kind = "preference" if re.search(r"\bprefer|like|dislike|always|never\b", content, re.IGNORECASE) else "conversation"
-        self.memory.add(content, memory_type=kind, approved_for_cloud_sync=cloud_approved)
+        item = self.memory.add(content, memory_type=kind, approved_for_cloud_sync=cloud_approved)
+        if cloud_approved:
+            if item.get("cloud_synced"):
+                return "That memory is saved locally and synced to your ULTRON cloud memory."
+            return "That memory is saved locally. Cloud sync is not connected or could not be completed yet."
+        return "That memory is saved on this device."
 
     def respond(self, prompt: str) -> str:
         prompt = prompt.strip()
         if not prompt:
             raise ValueError("Prompt cannot be empty.")
 
-        self._remember_explicit_request(prompt)
+        save_notice = self._remember_explicit_request(prompt)
         pending = [self._system_message(), *self.messages, {"role": "user", "content": prompt}]
         failures = []
 
         if self.cloud.configured:
             try:
                 answer = self.cloud.chat(pending)
+                if save_notice:
+                    answer = save_notice + " " + answer
                 self._remember([*pending[1:], {"role": "assistant", "content": answer}])
                 return answer
             except ProviderError as exc:
@@ -83,6 +90,8 @@ class Assistant:
 
         try:
             answer = self.local.chat(pending)
+            if save_notice:
+                answer = save_notice + " " + answer
             self._remember([*pending[1:], {"role": "assistant", "content": answer}])
             return answer
         except ProviderError as exc:
