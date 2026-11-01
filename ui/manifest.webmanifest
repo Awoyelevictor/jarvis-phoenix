@@ -1,0 +1,10 @@
+{
+  "name": "ULTRON AI Assistant",
+  "short_name": "ULTRON",
+  "description": "Your personal hybrid AI assistant",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#101114",
+  "theme_color": "#101114",
+  "icons": []
+}
