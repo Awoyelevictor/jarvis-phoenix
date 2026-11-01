@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 GEMINI_OPENAI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
 DEFAULT_GEMINI_MODEL = "gemini-3.8-flash"
+DEFAULT_TTS_MODEL = "gemini-3.8-flash-tts"
 
 
 @dataclass(frozen=True)
@@ -16,6 +17,9 @@ class Settings:
     cloud_base_url: str = GEMINI_OPENAI_BASE_URL
     cloud_api_key: str = ""
     cloud_model: str = DEFAULT_GEMINI_MODEL
+    tts_model: str = DEFAULT_TTS_MODEL
+    tts_voice: str = "Charon"
+    tts_style: str = "Deep, resonant, calm and authoritative cinematic delivery. Natural human cadence, measured pace, subtle warmth, clear articulation, and thoughtful pauses."
     request_timeout: float = 90.0
     conversation_history_messages: int = 20
 
@@ -34,6 +38,12 @@ class Settings:
                 or os.getenv("PHOENIX_CLOUD_API_KEY", "")
             ),
             cloud_model=os.getenv("PHOENIX_CLOUD_MODEL", DEFAULT_GEMINI_MODEL),
+            tts_model=os.getenv("PHOENIX_TTS_MODEL", DEFAULT_TTS_MODEL),
+            tts_voice=os.getenv("PHOENIX_TTS_VOICE", "Charon"),
+            tts_style=os.getenv(
+                "PHOENIX_TTS_STYLE",
+                "Deep, resonant, calm and authoritative cinematic delivery. Natural human cadence, measured pace, subtle warmth, clear articulation, and thoughtful pauses.",
+            ),
             request_timeout=float(os.getenv("PHOENIX_REQUEST_TIMEOUT", "90")),
             conversation_history_messages=max(
                 2, int(os.getenv("PHOENIX_HISTORY_MESSAGES", "20"))
