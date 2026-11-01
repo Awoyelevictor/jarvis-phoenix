@@ -1,79 +1,84 @@
 # Jarvis-Phoenix
 
-Jarvis-Phoenix is a cross-platform evolution of [Jarvis-MLX](https://github.com/huwprosser/jarvis-mlx). The goal is to make a practical AI assistant available across desktop and mobile environments, with local/offline AI as a first-class option and optional cloud providers.
+Jarvis-Phoenix is a cross-platform evolution of [Jarvis-MLX](https://github.com/huwprosser/jarvis-mlx). The assistant's new user-facing identity is **ULTRON**. The goal is a practical AI assistant across desktop and mobile environments, with local/offline AI as a first-class option and optional cloud providers.
 
 > Development is happening on the `phoenix-upgrade` branch. The `main` branch is being kept as the preserved baseline.
 
 ## Current status
 
-**Hybrid Gemini + local-provider foundation implemented; live inference and platform validation are ongoing.** The cross-platform runtime is built alongside the original MLX implementation. The original `main.py`, MLX code, and existing `requirements.txt` remain preserved during migration.
+**Gemini-first hybrid engine and first responsive ULTRON browser interface implemented; live inference and platform validation are ongoing.** The original MLX implementation remains alongside the cross-platform runtime.
 
 ### Current capabilities
 
 - Cross-platform Python entry point: `python phoenix.py`
+- Responsive ULTRON browser UI: `python phoenix.py --ui`
+- UI works in a modern browser on Android and Windows; install it as a PWA where browser support allows
+- ULTRON dark metallic interface with silver surfaces and red accents
 - Gemini cloud configuration using `GEMINI_API_KEY`
 - Gemini is tried first when an API key is configured
 - Automatic fallback to local Ollama when the cloud request fails
 - Local model remains optional and configurable; default future model is `llama3.2:1b`
-- OpenAI-compatible chat-completions adapter, using Google's documented Gemini compatibility endpoint
+- OpenAI-compatible chat-completions adapter using Google's documented Gemini compatibility endpoint
 - In-session conversation context shared with whichever provider responds
 - Bounded conversation history, configurable with `PHOENIX_HISTORY_MESSAGES` (default: 20 messages)
-- Conversation reset method for future UI integration
 - Provider health check: `python phoenix.py --check`
-- Core provider integration uses Python's standard library
+- Core provider integration and UI server use Python's standard library
 
-Conversation history currently exists only in memory and is cleared when the process exits. Persistent memory, file access, vision, microphone input, speech-to-text, text-to-speech, and the desktop GUI are not implemented yet.
+Conversation history currently exists only in memory and is cleared when the process exits. Persistent memory, image/video vision, microphone input, speech-to-text, text-to-speech, and permission-controlled tools are not implemented yet.
 
-## Validation status
+## Run the ULTRON interface
 
-- Android/Termux: the project owner confirmed the previous six-test suite and Python compilation passed.
-- Additional provider response-validation tests have now been added; run the full suite after pulling the latest branch to verify them.
-- Gemini live API authentication and response generation still need to be tested using the owner's key.
-- Local Llama inference is not yet installed or tested; no model download is required to configure Gemini.
-- Windows, Linux, and macOS runtime testing remains pending.
+Keep the Gemini key in your current shell, then run:
 
-## Requirements
+~~~bash
+python phoenix.py --check
+python phoenix.py --ui
+~~~
 
-- Python 3.10 or newer
-- For Gemini cloud AI: a Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey)
-- For optional local AI later: install [Ollama](https://ollama.com/) and download a model
-- Internet is needed for Gemini requests and initial local model downloads
+Open **http://127.0.0.1:8765** in Chrome or another modern browser on the same device. On Android with Termux, leave the Termux server running while using the browser. On Windows, the same command starts the local interface; open the address in your browser. The server binds to localhost by default so it is not exposed to the local network.
 
-### Configure Gemini (cloud-first)
+To choose another port:
 
-In Termux, set your key in the current shell:
+~~~bash
+python phoenix.py --ui --port 9000
+~~~
+
+The interface is responsive and can be installed as a PWA from the browser's install/add-to-home-screen menu. The UI shell may be cached, but live AI chat still requires the Python server and an available provider.
+
+## Configure Gemini (cloud-first)
+
+In Termux or a Windows terminal, set your key in the current shell:
 
 ~~~bash
 export GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
 ~~~
 
-Then check configuration and start Jarvis:
+In PowerShell, use:
 
-~~~bash
-python phoenix.py --check
-python phoenix.py
+~~~powershell
+$env:GEMINI_API_KEY = "YOUR_GEMINI_API_KEY"
 ~~~
 
 The default cloud endpoint is Google's OpenAI-compatible Gemini endpoint, and the default model is `gemini-3.8-flash`. These defaults can be overridden with `PHOENIX_CLOUD_BASE_URL` and `PHOENIX_CLOUD_MODEL`. The API key is read from `GEMINI_API_KEY`; `PHOENIX_CLOUD_API_KEY` is also accepted as a fallback. Keep keys in environment variables and never commit them to GitHub.
 
-The health check confirms that the key is configured; it does not make a live Gemini request. A real message tests connectivity, model access, and quota. API usage and limits depend on the Google AI Studio project and model.
+The health check confirms that the key is configured; it does not make a live Gemini request. Sending a chat message tests connectivity, model access, and quota. API usage and limits depend on the Google AI Studio project and model.
 
-### Optional local Llama later
+## Optional local Llama later
 
-No local model needs to be downloaded now. The local provider is kept ready for a future Ollama installation. Its default model setting is `llama3.2:1b`; change it any time:
+No local model needs to be downloaded now. The local provider is kept ready for a future Ollama installation. Its default model setting is `llama3.2:1b`; change it with:
 
 ~~~bash
 export PHOENIX_LOCAL_MODEL="llama3.2:1b"
 ~~~
 
-After installing Ollama and downloading the selected model, start the Ollama service and Jarvis can use it as a fallback if Gemini is unavailable. You can override the local endpoint with `PHOENIX_LOCAL_BASE_URL`.
+After installing Ollama and downloading the selected model, start the Ollama service and ULTRON can use it as a fallback if Gemini is unavailable. You can override the local endpoint with `PHOENIX_LOCAL_BASE_URL`.
 
-### Optional conversation settings
+## Optional conversation settings
 
 - `PHOENIX_REQUEST_TIMEOUT` (default: `90` seconds)
 - `PHOENIX_HISTORY_MESSAGES` (default: `20` messages)
 
-### Run tests
+## Run tests
 
 ~~~bash
 python -m pytest -v
@@ -84,10 +89,12 @@ Pytest is configured to run the cross-platform suite in `tests/`. The original A
 ## Repository layout
 
 - `main.py` — original MLX-based assistant, retained during migration
-- `phoenix.py` — new cross-platform hybrid AI entry point
+- `phoenix.py` — cross-platform entry point and UI launcher
 - `app/config.py` — environment configuration and Gemini defaults
 - `app/providers.py` — local and OpenAI-compatible cloud adapters
 - `app/assistant.py` — provider routing, fallback, and session context
+- `app/webui.py` — lightweight local web server for the browser UI
+- `ui/` — responsive ULTRON PWA interface
 - `tests/` — cross-platform tests
 - `test/` — original MLX/TTS tests
 
@@ -96,10 +103,10 @@ Pytest is configured to run the cross-platform suite in `tests/`. The original A
 1. Cross-platform core and provider abstraction
 2. Hybrid routing, local fallback, and in-session conversation context
 3. Gemini cloud integration and provider reliability
-4. Cross-platform audio capture and device selection
-5. Speech-to-text with configurable lightweight models
-6. Text-to-speech with an offline engine
-7. Desktop/mobile interface, settings, and model setup
+4. Responsive ULTRON interface for Android and Windows
+5. Cross-platform audio capture and device selection
+6. Speech-to-text with configurable lightweight models
+7. Text-to-speech with an offline engine
 8. Vision, persistent memory, and permission-controlled tools
 9. Windows-first testing, then Linux/macOS and supported mobile validation
 10. Packaging, documentation, and release
