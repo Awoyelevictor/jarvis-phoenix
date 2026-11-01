@@ -17,7 +17,11 @@ class GeminiSpeechProvider:
         self.settings = settings
 
     def synthesize(self, text: str) -> tuple[str, str]:
-        if not self.settings.cloud_api_key:
+        api_key = self.settings.tts_api_key
+        # Preserve compatibility for direct Gemini-only Settings instances.
+        if not api_key and "generativelanguage.googleapis.com" in self.settings.cloud_base_url:
+            api_key = self.settings.cloud_api_key
+        if not api_key:
             raise ProviderError("Gemini API key is not configured for voice generation.")
         text = text.strip()
         if not text:
@@ -49,7 +53,7 @@ class GeminiSpeechProvider:
             data=json.dumps(payload).encode("utf-8"),
             headers={
                 "Content-Type": "application/json",
-                "x-goog-api-key": self.settings.cloud_api_key,
+                "x-goog-api-key": api_key,
             },
             method="POST",
         )
