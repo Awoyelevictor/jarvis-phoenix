@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+from contextlib import contextmanager
 import sqlite3
 import uuid
 from datetime import datetime, timezone
@@ -42,10 +43,18 @@ class MemoryStore:
             pass
         return value
 
+    @contextmanager
     def _connect(self):
         connection = sqlite3.connect(self.database_path)
         connection.row_factory = sqlite3.Row
-        return connection
+        try:
+            yield connection
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
 
     def _initialize(self):
         with self._connect() as db:
@@ -61,6 +70,10 @@ class MemoryStore:
                 )
             """)
             db.execute("create index if not exists memories_owner_created on memories(owner_id, created_at desc)")
+        try:
+            self.database_path.chmod(0o600)
+        except OSError:
+            pass
 
     @property
     def cloud_configured(self) -> bool:
@@ -173,5 +186,10 @@ class MemoryStore:
             ).fetchall()
         if not rows:
             return 0
-        self._cloud_request("POST", "ultron_memories?on_conflict=id", [dict(row) for row in rows])
+        payload = []
+        for row in rows:
+            item = dict(row)
+            item["approved_for_cloud_sync"] = bool(item["approved_for_cloud_sync"])
+            payload.append(item)
+        self._cloud_request("POST", "ultron_memories?on_conflict=id", payload)
         return len(rows)
