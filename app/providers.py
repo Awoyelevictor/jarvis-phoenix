@@ -39,7 +39,7 @@ class OllamaProvider:
 
     def chat(self, messages: list[dict[str, str]]) -> str:
         result = _post_json(
-            f"{self.settings.local_base_url}/api/chat",
+            f"{self.settings.local_base_url.rstrip('/')}/api/chat",
             {
                 "model": self.settings.local_model,
                 "messages": messages,
@@ -48,17 +48,29 @@ class OllamaProvider:
             {},
             self.settings.request_timeout,
         )
-        message = result.get("message", {}).get("content", "").strip()
-        if not message:
-            raise ProviderError("Ollama returned an empty response.")
-        return message
+        message = result.get("message")
+        if not isinstance(message, dict):
+            raise ProviderError("Ollama returned an unexpected response format.")
+        content = message.get("content")
+        if not isinstance(content, str) or not content.strip():
+            raise ProviderError("Ollama returned an empty or invalid response.")
+        return content.strip()
 
     def check(self) -> str:
-        request = Request(f"{self.settings.local_base_url}/api/tags")
+        request = Request(f"{self.settings.local_base_url.rstrip('/')}/api/tags")
         try:
             with urlopen(request, timeout=5) as response:
                 data = json.loads(response.read().decode("utf-8"))
-            models = [item.get("name", "") for item in data.get("models", [])]
+            if not isinstance(data, dict):
+                raise ValueError("Unexpected response format")
+            model_items = data.get("models", [])
+            if not isinstance(model_items, list):
+                raise ValueError("Unexpected models list")
+            models = [
+                item.get("name", "")
+                for item in model_items
+                if isinstance(item, dict)
+            ]
             if self.settings.local_model not in models:
                 return (
                     f"Ollama is running; model '{self.settings.local_model}' "
@@ -86,7 +98,7 @@ class OpenAICompatibleProvider:
     def chat(self, messages: list[dict[str, str]]) -> str:
         if not self.configured:
             raise ProviderError("Cloud provider is not fully configured.")
-        base = self.settings.cloud_base_url
+        base = self.settings.cloud_base_url.rstrip("/")
         url = base if base.endswith("/chat/completions") else f"{base}/chat/completions"
         result = _post_json(
             url,
@@ -98,11 +110,20 @@ class OpenAICompatibleProvider:
             self.settings.request_timeout,
         )
         try:
-            content = result["choices"][0]["message"]["content"]
+            choices = result["choices"]
+            if not isinstance(choices, list) or not choices:
+                raise TypeError("Missing choices")
+            choice = choices[0]
+            if not isinstance(choice, dict):
+                raise TypeError("Invalid choice")
+            message = choice["message"]
+            if not isinstance(message, dict):
+                raise TypeError("Invalid message")
+            content = message["content"]
         except (KeyError, IndexError, TypeError) as exc:
             raise ProviderError(
                 "Cloud endpoint returned an unexpected response format."
             ) from exc
         if not isinstance(content, str) or not content.strip():
-            raise ProviderError("Cloud endpoint returned an empty response.")
+            raise ProviderError("Cloud endpoint returned an empty or invalid response.")
         return content.strip()
