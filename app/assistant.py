@@ -50,13 +50,14 @@ class Assistant:
     def _remember_explicit_request(self, prompt: str) -> None:
         import re
         match = re.match(
-            r"^(?:ultron[, ]+)?(?:remember(?: that)?|save(?: this)?(?: to (?:my )?(?:memory|cloud))?)(?:\s*[:,-]?\s*)(.+)$",
+            r"^(?:ultron[, ]+)?(?:remember(?: that| this)?|save(?: this)?(?: to (?:my )?(?:memory|cloud))?)(?:\s*[:,-]?\s*)(.+)$",
             prompt.strip(),
             flags=re.IGNORECASE | re.DOTALL,
         )
         if not match:
             return
         content = match.group(1).strip()
+        content = re.sub(r"^(?:in|to) (?:the )?cloud\\s*[:,-]?\\s*", "", content, flags=re.IGNORECASE)
         if not content:
             return
         cloud_approved = bool(re.search(r"\b(?:cloud|sync)\b", prompt, re.IGNORECASE))
