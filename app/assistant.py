@@ -33,6 +33,11 @@ class Assistant:
         """Clear only the current conversation; persistent memories remain."""
         self.messages.clear()
 
+    def _remember(self, messages: list[dict[str, str]]) -> None:
+        """Keep a bounded conversation history, excluding the system prompt."""
+        limit = max(2, self.settings.conversation_history_messages)
+        self.messages = messages[-limit:]
+
     def _system_message(self) -> dict[str, str]:
         memories = self.memory.context()
         memory_text = "\n".join(memories) if memories else "No saved memories yet."
