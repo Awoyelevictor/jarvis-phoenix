@@ -1,33 +1,97 @@
-# Jarvis MLX
+# Jarvis-Phoenix
 
-⚠️ Work in progress! [Follow me on X for updates!](https://x.com/huwprossercodes)
+Jarvis-Phoenix is a cross-platform evolution of [Jarvis-MLX](https://github.com/huwprosser/jarvis-mlx). The goal is to make a practical voice-first AI assistant available on Windows, Linux, and macOS, with local/offline AI as a first-class option and optional cloud providers.
 
-An all-in-one solution to stark-level productivity running offline on your MacBook using SOTA technology and MLX, Apple's new machine learning framework optimized for Apple Silicon.
+> Development is happening on the `phoenix-upgrade` branch. The `main` branch is being kept as the preserved baseline.
 
-Native python is required to run MLX libs:
-`python -c "import platform; print(platform.processor())"`
-should say "arm"
+## Current status
 
-`CONDA_SUBDIR=osx-arm64 conda create -n native numpy -c conda-forge`
-will create a conda env with numpy for arm64 called "native"
+**Phase 1 foundation is in progress.** This branch now contains a separate cross-platform text assistant entry point and provider layer. The original `main.py`, MLX implementation, and existing `requirements.txt` are deliberately retained while the new runtime is built alongside them.
 
-Firstly, pip install the requirements:
-`pip install -r requirements.txt`
+### Current capabilities
 
-## Speech-to-text (STT)
+- Cross-platform Python entry point: `python phoenix.py`
+- Optional local inference through an installed Ollama service
+- Optional OpenAI-compatible cloud endpoint
+- Cloud-first selection when configured, with automatic fallback to local Ollama
+- Provider health check: `python phoenix.py --check`
+- Core provider integration uses Python's standard library
 
-Using Whisper for this. SOTA speech recognition opensourced by openai and trained on 1.5k hours of audio. It's a tiny model that runs on your macbook, upgradable to larger models in the series for better performance.
+### Not implemented yet
 
-Helpful link: [Whisper MLX](https://github.com/ml-explore/mlx-examples/tree/main/whisper)
+- Microphone capture and voice activity detection
+- Speech-to-text and text-to-speech
+- Desktop graphical interface
+- Model manager / guided installation
+- Verified Windows, Linux, and macOS packaging
 
-## Large Language Model
+Do not treat these planned features as available until they are implemented and tested.
 
-Using Phi 3 out the box you can achieve 60 tokens per second on an M1 Max. You can also finetune your own models and load them in. I'd highly recommend Mistral or Llama 3.
+## Requirements
 
-## Text-to-speech (TTS)
+- Python 3.10 or newer
+- For local AI: install [Ollama](https://ollama.com/) and download a model
+- Internet is only needed for initial downloads or when using a cloud provider
 
-For this, I opted to use [MeloTTS](https://github.com/myshell-ai/MeloTTS?tab=readme-ov-file). It's not as hyped up as some other offerings but it's fast, runs on a mac and finetunable on custom data using the original repo. A stripped down version of the inference code for english can be found in [/melo](melo/).
+### Run the new foundation
 
-###### Please note, out the box Jarvis-mlx has a female voice. You will need to train your own MeloTTS model to change this. Finetuning Phi 3 will also achieve much better behaviour.
+```bash
+python phoenix.py --check
+python phoenix.py
+```
 
-PRs Welcome!
+The default local model is `qwen2.5:1.5b`. Download it once with:
+
+```bash
+ollama pull qwen2.5:1.5b
+```
+
+Make sure the Ollama service is running before starting Jarvis-Phoenix. Local inference can run without internet after the model has been downloaded; speed depends on available RAM and CPU/GPU.
+
+### Optional cloud provider
+
+Set these environment variables to use an OpenAI-compatible chat-completions endpoint:
+
+- `PHOENIX_CLOUD_BASE_URL`
+- `PHOENIX_CLOUD_API_KEY`
+- `PHOENIX_CLOUD_MODEL`
+
+The cloud provider is optional. Keep credentials in environment variables; never commit API keys.
+
+Optional local configuration:
+
+- `PHOENIX_LOCAL_BASE_URL` (default: `http://localhost:11434`)
+- `PHOENIX_LOCAL_MODEL` (default: `qwen2.5:1.5b`)
+- `PHOENIX_REQUEST_TIMEOUT` (default: `90` seconds)
+
+## Repository layout
+
+- `main.py` — original MLX-based assistant, retained during migration
+- `phoenix.py` — new cross-platform entry point
+- `app/config.py` — environment configuration
+- `app/providers.py` — local and optional cloud provider adapters
+- `app/assistant.py` — provider selection and fallback
+- `tests/` — initial tests
+
+## Upgrade roadmap
+
+1. Cross-platform core and provider abstraction
+2. Cross-platform audio capture and device selection
+3. Speech-to-text with configurable lightweight models
+4. Text-to-speech with an offline engine
+5. Desktop interface, settings, and model setup
+6. Windows-first testing, then Linux and macOS validation
+7. Packaging, documentation, and release
+
+## Design principles
+
+- No mandatory paid API or subscription
+- No mandatory GPU
+- Local models remain available for offline use after download
+- Cloud services are optional and replaceable
+- Keep the original implementation available until migration is verified
+- Do not claim platform support or test results without actually testing them
+
+## Upstream acknowledgement
+
+This project builds on the work in [huwprosser/jarvis-mlx](https://github.com/huwprosser/jarvis-mlx). The original MLX implementation is retained as a reference during the cross-platform migration. Check the upstream repository's license and preserve all required notices before redistributing or relicensing inherited code.
