@@ -6,15 +6,16 @@ Jarvis-Phoenix is a cross-platform evolution of [Jarvis-MLX](https://github.com/
 
 ## Current status
 
-**Phase 2 hybrid AI engine implemented; platform runtime validation is ongoing.** The new cross-platform runtime is built alongside the original MLX implementation. The original `main.py`, MLX code, and existing `requirements.txt` remain preserved during migration.
+**Hybrid Gemini + local-provider foundation implemented; live inference and platform validation are ongoing.** The cross-platform runtime is built alongside the original MLX implementation. The original `main.py`, MLX code, and existing `requirements.txt` remain preserved during migration.
 
 ### Current capabilities
 
 - Cross-platform Python entry point: `python phoenix.py`
-- Hybrid provider routing: configured cloud endpoint is tried first
+- Gemini cloud configuration using `GEMINI_API_KEY`
+- Gemini is tried first when an API key is configured
 - Automatic fallback to local Ollama when the cloud request fails
-- Local inference through an installed Ollama service
-- Optional OpenAI-compatible chat-completions endpoint
+- Local model remains optional and configurable; default future model is `llama3.2:1b`
+- OpenAI-compatible chat-completions adapter, using Google's documented Gemini compatibility endpoint
 - In-session conversation context shared with whichever provider responds
 - Bounded conversation history, configurable with `PHOENIX_HISTORY_MESSAGES` (default: 20 messages)
 - Conversation reset method for future UI integration
@@ -23,55 +24,56 @@ Jarvis-Phoenix is a cross-platform evolution of [Jarvis-MLX](https://github.com/
 
 Conversation history currently exists only in memory and is cleared when the process exits. Persistent memory, file access, vision, microphone input, speech-to-text, text-to-speech, and the desktop GUI are not implemented yet.
 
-### Validation status
+## Validation status
 
-- Android/Termux: Python compilation and the initial configuration test were reported passing by the project owner.
-- The original MLX tests are retained in `test/`; pytest is configured to discover the cross-platform suite in `tests/` by default.
-- New hybrid routing tests have been added, but they must be executed before their results can be claimed.
-- Windows, Linux, macOS, and actual local/cloud model inference still require runtime testing.
+- Android/Termux: the project owner confirmed the previous six-test suite and Python compilation passed.
+- Additional provider response-validation tests have now been added; run the full suite after pulling the latest branch to verify them.
+- Gemini live API authentication and response generation still need to be tested using the owner's key.
+- Local Llama inference is not yet installed or tested; no model download is required to configure Gemini.
+- Windows, Linux, and macOS runtime testing remains pending.
 
 ## Requirements
 
 - Python 3.10 or newer
-- For local AI: install [Ollama](https://ollama.com/) and download a model
-- For cloud AI: credentials for an OpenAI-compatible endpoint (optional)
-- Internet is needed for initial model downloads or cloud requests
+- For Gemini cloud AI: a Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey)
+- For optional local AI later: install [Ollama](https://ollama.com/) and download a model
+- Internet is needed for Gemini requests and initial local model downloads
 
-### Run the assistant
+### Configure Gemini (cloud-first)
+
+In Termux, set your key in the current shell:
+
+~~~bash
+export GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
+~~~
+
+Then check configuration and start Jarvis:
 
 ~~~bash
 python phoenix.py --check
 python phoenix.py
 ~~~
 
-The default local model is `qwen2.5:1.5b`. Download it once with:
+The default cloud endpoint is Google's OpenAI-compatible Gemini endpoint, and the default model is `gemini-3.8-flash`. These defaults can be overridden with `PHOENIX_CLOUD_BASE_URL` and `PHOENIX_CLOUD_MODEL`. The API key is read from `GEMINI_API_KEY`; `PHOENIX_CLOUD_API_KEY` is also accepted as a fallback. Keep keys in environment variables and never commit them to GitHub.
+
+The health check confirms that the key is configured; it does not make a live Gemini request. A real message tests connectivity, model access, and quota. API usage and limits depend on the Google AI Studio project and model.
+
+### Optional local Llama later
+
+No local model needs to be downloaded now. The local provider is kept ready for a future Ollama installation. Its default model setting is `llama3.2:1b`; change it any time:
 
 ~~~bash
-ollama pull qwen2.5:1.5b
+export PHOENIX_LOCAL_MODEL="llama3.2:1b"
 ~~~
 
-Make sure the Ollama service is running before starting Jarvis-Phoenix. Local inference can run without internet after the model has been downloaded; speed depends on available RAM and CPU/GPU.
+After installing Ollama and downloading the selected model, start the Ollama service and Jarvis can use it as a fallback if Gemini is unavailable. You can override the local endpoint with `PHOENIX_LOCAL_BASE_URL`.
 
-### Optional cloud provider
+### Optional conversation settings
 
-Set these environment variables to use an OpenAI-compatible chat-completions endpoint:
-
-- `PHOENIX_CLOUD_BASE_URL`
-- `PHOENIX_CLOUD_API_KEY`
-- `PHOENIX_CLOUD_MODEL`
-
-When all three are set, Jarvis tries the cloud endpoint first and falls back to local Ollama if the cloud request fails. Keep credentials in environment variables; never commit API keys. The `--check` command reports whether cloud settings are configured; it does not make a live cloud request.
-
-### Optional local and conversation settings
-
-- `PHOENIX_LOCAL_BASE_URL` (default: `http://localhost:11434`)
-- `PHOENIX_LOCAL_MODEL` (default: `qwen2.5:1.5b`)
 - `PHOENIX_REQUEST_TIMEOUT` (default: `90` seconds)
 - `PHOENIX_HISTORY_MESSAGES` (default: `20` messages)
 
 ### Run tests
-
-Install pytest if needed, then run:
 
 ~~~bash
 python -m pytest -v
@@ -83,8 +85,8 @@ Pytest is configured to run the cross-platform suite in `tests/`. The original A
 
 - `main.py` — original MLX-based assistant, retained during migration
 - `phoenix.py` — new cross-platform hybrid AI entry point
-- `app/config.py` — environment configuration
-- `app/providers.py` — local and optional cloud provider adapters
+- `app/config.py` — environment configuration and Gemini defaults
+- `app/providers.py` — local and OpenAI-compatible cloud adapters
 - `app/assistant.py` — provider routing, fallback, and session context
 - `tests/` — cross-platform tests
 - `test/` — original MLX/TTS tests
@@ -93,13 +95,14 @@ Pytest is configured to run the cross-platform suite in `tests/`. The original A
 
 1. Cross-platform core and provider abstraction
 2. Hybrid routing, local fallback, and in-session conversation context
-3. Cross-platform audio capture and device selection
-4. Speech-to-text with configurable lightweight models
-5. Text-to-speech with an offline engine
-6. Desktop/mobile interface, settings, and model setup
-7. Vision, persistent memory, and permission-controlled tools
-8. Windows-first testing, then Linux/macOS and supported mobile validation
-9. Packaging, documentation, and release
+3. Gemini cloud integration and provider reliability
+4. Cross-platform audio capture and device selection
+5. Speech-to-text with configurable lightweight models
+6. Text-to-speech with an offline engine
+7. Desktop/mobile interface, settings, and model setup
+8. Vision, persistent memory, and permission-controlled tools
+9. Windows-first testing, then Linux/macOS and supported mobile validation
+10. Packaging, documentation, and release
 
 ## Design principles
 
