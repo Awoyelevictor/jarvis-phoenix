@@ -1,16 +1,13 @@
 const $ = (id) => document.getElementById(id);
-const audio = $("ultron-audio");
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recognition = null;
 let sessionActive = false;
 let busy = false;
-let restartAfterSpeech = false;
 let finalTranscript = "";
 let audioContext = null;
 let analyser = null;
-let sourceNode = null;
+let playbackSource = null;
 let animationFrame = 0;
-let audioUrl = null;
 
 function toast(message) {
   const el = $("toast");
@@ -42,9 +39,10 @@ function estimatePitch(samples, sampleRate) {
   return bestLag ? sampleRate / bestLag : 0;
 }
 function animateAudio() {
-  if (!analyser) return;
+  if (!analyser || !playbackSource) return;
   const samples = new Float32Array(analyser.fftSize);
   const tick = () => {
+    if (!playbackSource) return;
     analyser.getFloatTimeDomainData(samples);
     let sum = 0;
     for (const value of samples) sum += value * value;
@@ -54,24 +52,21 @@ function animateAudio() {
     const pitchNorm = pitch ? Math.max(0, Math.min(1, (pitch - 75) / 285)) : .35;
     document.documentElement.style.setProperty("--voice-energy", energy.toFixed(3));
     document.documentElement.style.setProperty("--voice-pitch", pitchNorm.toFixed(3));
-    if (!audio.paused && !audio.ended) animationFrame = requestAnimationFrame(tick);
+    animationFrame = requestAnimationFrame(tick);
   };
   cancelAnimationFrame(animationFrame);
   animationFrame = requestAnimationFrame(tick);
 }
-async function prepareAnalyser() {
+async function prepareAudio() {
   if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
   if (audioContext.state === "suspended") await audioContext.resume();
-  if (!sourceNode) {
+  if (!analyser) {
     analyser = audioContext.createAnalyser();
     analyser.fftSize = 2048;
-    sourceNode = audioContext.createMediaElementSource(audio);
-    sourceNode.connect(analyser);
     analyser.connect(audioContext.destination);
   }
 }
 function createRecognition() {
-  if (!SpeechRecognition) throw new Error("Speech recognition is unavailable in this browser. Use the latest Chrome browser.");
   recognition = new SpeechRecognition();
   recognition.lang = navigator.language || "en-NG";
   recognition.continuous = false;
@@ -116,40 +111,49 @@ async function processUtterance(text) {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "AI request failed.");
+    if (!sessionActive) return;
     await speak(data.reply || "I don't have a response for that.");
   } catch (error) {
-    toast(error.message);
-    setMode("error", "CONNECTION ERROR", "Check the Gemini connection, then try speaking again.");
-    await new Promise(resolve => setTimeout(resolve, 1600));
+    if (sessionActive) {
+      toast(error.message);
+      setMode("error", "CONNECTION ERROR", "Check Gemini connectivity and try speaking again.");
+      await new Promise(resolve => setTimeout(resolve, 1600));
+    }
   } finally {
     busy = false;
-    if (sessionActive && audio.paused) startListening();
+    if (sessionActive && !playbackSource) startListening();
     else if (!sessionActive) setMode("standby", "SYSTEM STANDBY", "Tap the core to begin a voice session");
   }
 }
 async function speak(text) {
-  setMode("thinking", "GENERATING VOICE", "Preparing ULTRON's voice.");
+  setMode("thinking", "GENERATING VOICE", "Preparing ULTRON's natural voice.");
   const response = await fetch("/api/voice", {
     method: "POST", headers: {"Content-Type": "application/json"},
     body: JSON.stringify({text})
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || "Gemini voice generation failed.");
-  await prepareAnalyser();
-  if (audioUrl) URL.revokeObjectURL(audioUrl);
-  const bytes = Uint8Array.from(atob(data.audio), char => char.charCodeAt(0));
-  audioUrl = URL.createObjectURL(new Blob([bytes], {type: data.mime_type || "audio/wav"}));
-  audio.src = audioUrl;
-  setMode("speaking", "ULTRON IS SPEAKING", "Voice reactor synchronised to live audio dynamics");
+  if (!sessionActive) return;
+  await prepareAudio();
+  const binary = atob(data.audio);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const audioBuffer = await audioContext.decodeAudioData(bytes.buffer);
+  if (!sessionActive) return;
+  playbackSource = audioContext.createBufferSource();
+  playbackSource.buffer = audioBuffer;
+  playbackSource.connect(analyser);
+  playbackSource.onended = () => {
+    playbackSource = null;
+    resetGlow();
+    if (sessionActive && !busy) startListening();
+    else if (!sessionActive) setMode("standby", "SYSTEM STANDBY", "Tap the core to begin a voice session");
+  };
+  setMode("speaking", "ULTRON IS SPEAKING", "Reactor responding to live voice pitch and intensity");
   $("mic-button").classList.remove("active");
   $("control-caption").textContent = "VOICE OUTPUT";
-  audio.onplay = animateAudio;
-  audio.onended = () => {
-    resetGlow();
-    if (sessionActive) startListening();
-    else setMode("standby", "SYSTEM STANDBY", "Tap the core to begin a voice session");
-  };
-  await audio.play();
+  playbackSource.start();
+  animateAudio();
 }
 function updateControls() {
   $("mic-button").classList.toggle("active", sessionActive && !busy);
@@ -159,11 +163,11 @@ function updateControls() {
 }
 async function startSession() {
   if (!SpeechRecognition) {
-    toast("This browser does not support speech recognition. Please use Chrome.");
+    toast("Speech recognition is unavailable. Use the latest Chrome browser.");
     return;
   }
   try {
-    await prepareAnalyser();
+    await prepareAudio();
     createRecognition();
     sessionActive = true;
     updateControls();
@@ -176,13 +180,15 @@ function stopSession() {
   sessionActive = false;
   busy = false;
   try { recognition?.stop(); } catch {}
-  audio.pause();
+  if (playbackSource) {
+    try { playbackSource.stop(); } catch {}
+    playbackSource = null;
+  }
   resetGlow();
   updateControls();
   setMode("standby", "SYSTEM STANDBY", "Tap the core to begin a voice session");
 }
 $("mic-button").addEventListener("click", () => sessionActive ? stopSession() : startSession());
 $("stop-button").addEventListener("click", stopSession);
-audio.addEventListener("pause", () => { if (audio.ended || !sessionActive) resetGlow(); });
-$("voice-engine").textContent = "GEMINI 3.8 TTS · CHARON";
+$("voice-engine").textContent = "GEMINI 3.8 TTS · ALGENIB";
 if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
