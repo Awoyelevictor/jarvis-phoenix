@@ -1,17 +1,188 @@
 const $ = (id) => document.getElementById(id);
-const form = $("chat-form"), promptBox = $("prompt"), messages = $("messages");
+const audio = $("ultron-audio");
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+let sessionActive = false;
 let busy = false;
-function toast(message){const el=$("toast");el.textContent=message;el.classList.add("show");setTimeout(()=>el.classList.remove("show"),3200)}
-function addMessage(role,text,pending=false){const row=document.createElement("div");row.className="message "+role+(pending?" pending":"");const avatar=document.createElement("div");avatar.className="message-avatar";avatar.textContent=role==="user"?"YOU":"U";const bubble=document.createElement("div");bubble.className="bubble";bubble.textContent=text;row.append(avatar,bubble);messages.append(row);$("chat-area").classList.add("visible");$("welcome").style.display="none";$("chat-area").scrollTop=$("chat-area").scrollHeight;return row}
-async function sendMessage(value){const text=value.trim();if(!text||busy)return;busy=true;promptBox.value="";promptBox.style.height="auto";$("send-button").disabled=true;addMessage("user",text);const pending=addMessage("assistant","ULTRON is thinking…",true);pending.querySelector(".bubble").innerHTML='<span class="typing-dots">● ● ●</span>';try{const response=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt:text})});const data=await response.json();if(!response.ok)throw new Error(data.error||"Request failed");pending.querySelector(".bubble").textContent=data.reply||"The model returned an empty response." ;pending.classList.remove("pending")}catch(error){pending.querySelector(".bubble").textContent="I couldn't complete that request. "+error.message;pending.classList.remove("pending");toast("AI request failed — check the provider status.")}finally{busy=false;$("send-button").disabled=false;promptBox.focus();$("chat-area").scrollTop=$("chat-area").scrollHeight}}
-form.addEventListener("submit",e=>{e.preventDefault();sendMessage(promptBox.value)});
-promptBox.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();form.requestSubmit()}});
-promptBox.addEventListener("input",()=>{promptBox.style.height="auto";promptBox.style.height=Math.min(promptBox.scrollHeight,160)+"px"});
-document.querySelectorAll(".suggestion").forEach(button=>button.addEventListener("click",()=>sendMessage(button.dataset.prompt)));
-$("new-chat").addEventListener("click",()=>{messages.replaceChildren();$("chat-area").classList.remove("visible");$("welcome").style.display="block";toast("New conversation started. Session context is reset only when the server restarts.")});
-$("focus-chat").addEventListener("click",()=>promptBox.focus());
-$("menu-toggle").addEventListener("click",()=>$("sidebar").classList.toggle("open"));
-document.addEventListener("click",e=>{if(window.innerWidth<=760&&!$("sidebar").contains(e.target)&&e.target!==$("menu-toggle"))$("sidebar").classList.remove("open")});
-async function refreshStatus(){try{const r=await fetch("/api/status");const data=await r.json();const cloud=data.providers.find(p=>p.name==="Gemini cloud");const local=data.providers.find(p=>p.name==="Local Ollama");$("cloud-state").textContent=cloud?.ready?"Configured":"Not configured";$("cloud-state").style.color=cloud?.ready?"#d7d9de":"#e66b73";$("local-state").textContent=local?.ready?"Ready":"Optional";$("local-state").style.color=local?.ready?"#d7d9de":"#92959c"}catch{$("cloud-state").textContent="Unavailable";$("local-state").textContent="Unavailable"}}
-$("refresh-status").addEventListener("click",refreshStatus);refreshStatus();
-if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));
+let restartAfterSpeech = false;
+let finalTranscript = "";
+let audioContext = null;
+let analyser = null;
+let sourceNode = null;
+let animationFrame = 0;
+let audioUrl = null;
+
+function toast(message) {
+  const el = $("toast");
+  el.textContent = message;
+  el.classList.add("show");
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => el.classList.remove("show"), 4200);
+}
+function setMode(mode, label, hint) {
+  document.body.dataset.mode = mode;
+  $("voice-state").textContent = label;
+  $("voice-hint").textContent = hint;
+  $("state-label").textContent = mode.toUpperCase();
+}
+function resetGlow() {
+  cancelAnimationFrame(animationFrame);
+  document.documentElement.style.setProperty("--voice-energy", "0");
+  document.documentElement.style.setProperty("--voice-pitch", ".5");
+}
+function estimatePitch(samples, sampleRate) {
+  let bestLag = 0, bestCorrelation = 0;
+  const minLag = Math.floor(sampleRate / 360);
+  const maxLag = Math.min(Math.floor(sampleRate / 75), samples.length - 1);
+  for (let lag = minLag; lag <= maxLag; lag += 2) {
+    let correlation = 0;
+    for (let i = 0; i < samples.length - lag; i += 4) correlation += samples[i] * samples[i + lag];
+    if (correlation > bestCorrelation) { bestCorrelation = correlation; bestLag = lag; }
+  }
+  return bestLag ? sampleRate / bestLag : 0;
+}
+function animateAudio() {
+  if (!analyser) return;
+  const samples = new Float32Array(analyser.fftSize);
+  const tick = () => {
+    analyser.getFloatTimeDomainData(samples);
+    let sum = 0;
+    for (const value of samples) sum += value * value;
+    const rms = Math.sqrt(sum / samples.length);
+    const pitch = estimatePitch(samples, audioContext.sampleRate);
+    const energy = Math.min(1, rms * 5.5);
+    const pitchNorm = pitch ? Math.max(0, Math.min(1, (pitch - 75) / 285)) : .35;
+    document.documentElement.style.setProperty("--voice-energy", energy.toFixed(3));
+    document.documentElement.style.setProperty("--voice-pitch", pitchNorm.toFixed(3));
+    if (!audio.paused && !audio.ended) animationFrame = requestAnimationFrame(tick);
+  };
+  cancelAnimationFrame(animationFrame);
+  animationFrame = requestAnimationFrame(tick);
+}
+async function prepareAnalyser() {
+  if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioContext.state === "suspended") await audioContext.resume();
+  if (!sourceNode) {
+    analyser = audioContext.createAnalyser();
+    analyser.fftSize = 2048;
+    sourceNode = audioContext.createMediaElementSource(audio);
+    sourceNode.connect(analyser);
+    analyser.connect(audioContext.destination);
+  }
+}
+function createRecognition() {
+  if (!SpeechRecognition) throw new Error("Speech recognition is unavailable in this browser. Use the latest Chrome browser.");
+  recognition = new SpeechRecognition();
+  recognition.lang = navigator.language || "en-NG";
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+  recognition.onstart = () => setMode("listening", "LISTENING", "I'm listening. Speak naturally.");
+  recognition.onerror = (event) => {
+    if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+      sessionActive = false;
+      updateControls();
+      toast("Microphone permission was denied. Allow microphone access in Chrome site settings.");
+    } else if (event.error !== "no-speech" && event.error !== "aborted") {
+      toast("Microphone issue: " + event.error);
+    }
+  };
+  recognition.onresult = (event) => {
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript;
+    }
+  };
+  recognition.onend = () => {
+    if (!sessionActive || busy) return;
+    const spoken = finalTranscript.trim();
+    finalTranscript = "";
+    if (spoken) processUtterance(spoken);
+    else if (sessionActive) startListening();
+  };
+}
+function startListening() {
+  if (!sessionActive || busy || !recognition) return;
+  finalTranscript = "";
+  try { recognition.start(); }
+  catch { setTimeout(() => { if (sessionActive && !busy) startListening(); }, 450); }
+}
+async function processUtterance(text) {
+  busy = true;
+  setMode("thinking", "PROCESSING", "One moment. I'm working on that.");
+  try {
+    const response = await fetch("/api/chat", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({prompt: text})
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "AI request failed.");
+    await speak(data.reply || "I don't have a response for that.");
+  } catch (error) {
+    toast(error.message);
+    setMode("error", "CONNECTION ERROR", "Check the Gemini connection, then try speaking again.");
+    await new Promise(resolve => setTimeout(resolve, 1600));
+  } finally {
+    busy = false;
+    if (sessionActive && audio.paused) startListening();
+    else if (!sessionActive) setMode("standby", "SYSTEM STANDBY", "Tap the core to begin a voice session");
+  }
+}
+async function speak(text) {
+  setMode("thinking", "GENERATING VOICE", "Preparing ULTRON's voice.");
+  const response = await fetch("/api/voice", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({text})
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "Gemini voice generation failed.");
+  await prepareAnalyser();
+  if (audioUrl) URL.revokeObjectURL(audioUrl);
+  const bytes = Uint8Array.from(atob(data.audio), char => char.charCodeAt(0));
+  audioUrl = URL.createObjectURL(new Blob([bytes], {type: data.mime_type || "audio/wav"}));
+  audio.src = audioUrl;
+  setMode("speaking", "ULTRON IS SPEAKING", "Voice reactor synchronised to live audio dynamics");
+  $("mic-button").classList.remove("active");
+  $("control-caption").textContent = "VOICE OUTPUT";
+  audio.onplay = animateAudio;
+  audio.onended = () => {
+    resetGlow();
+    if (sessionActive) startListening();
+    else setMode("standby", "SYSTEM STANDBY", "Tap the core to begin a voice session");
+  };
+  await audio.play();
+}
+function updateControls() {
+  $("mic-button").classList.toggle("active", sessionActive && !busy);
+  $("mic-button").setAttribute("aria-label", sessionActive ? "End voice conversation" : "Start voice conversation");
+  $("control-caption").textContent = sessionActive ? "VOICE SESSION ACTIVE" : "ACTIVATE VOICE";
+  $("stop-button").hidden = !sessionActive;
+}
+async function startSession() {
+  if (!SpeechRecognition) {
+    toast("This browser does not support speech recognition. Please use Chrome.");
+    return;
+  }
+  try {
+    await prepareAnalyser();
+    createRecognition();
+    sessionActive = true;
+    updateControls();
+    startListening();
+  } catch (error) {
+    toast(error.message || "Could not start voice session.");
+  }
+}
+function stopSession() {
+  sessionActive = false;
+  busy = false;
+  try { recognition?.stop(); } catch {}
+  audio.pause();
+  resetGlow();
+  updateControls();
+  setMode("standby", "SYSTEM STANDBY", "Tap the core to begin a voice session");
+}
+$("mic-button").addEventListener("click", () => sessionActive ? stopSession() : startSession());
+$("stop-button").addEventListener("click", stopSession);
+audio.addEventListener("pause", () => { if (audio.ended || !sessionActive) resetGlow(); });
+$("voice-engine").textContent = "GEMINI 3.8 TTS · CHARON";
+if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
