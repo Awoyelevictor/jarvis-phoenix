@@ -33,16 +33,10 @@ def make_handler(assistant: Assistant):
             try:
                 self.wfile.write(payload)
             except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
-                # The browser may close a request while navigating/reloading.
-                # This is a disconnected client, not an application failure.
                 return
 
         def _json(self, status: int, data: dict) -> None:
-            self._send(
-                status,
-                json.dumps(data).encode("utf-8"),
-                "application/json; charset=utf-8",
-            )
+            self._send(status, json.dumps(data).encode("utf-8"), "application/json; charset=utf-8")
 
         def _read_json(self):
             length = int(self.headers.get("Content-Length", "0"))
@@ -63,7 +57,13 @@ def make_handler(assistant: Assistant):
                     "cloud_model": assistant.settings.cloud_model,
                     "tts_model": assistant.settings.tts_model,
                     "tts_voice": assistant.settings.tts_voice,
-                    "voice_ready": bool(assistant.settings.cloud_api_key),
+                    "voice_ready": bool(
+                        assistant.settings.tts_api_key
+                        or (
+                            "generativelanguage.googleapis.com" in assistant.settings.cloud_base_url
+                            and assistant.settings.cloud_api_key
+                        )
+                    ),
                 })
                 return
 
@@ -122,8 +122,6 @@ def make_handler(assistant: Assistant):
                     answer = assistant.respond(prompt)
                     self._json(200, {"reply": answer})
                 except Exception as exc:
-                    # Log the real provider failure before attempting to reply.
-                    # The browser may disconnect, which can otherwise hide this cause.
                     print(f"[ULTRON] Chat provider failed: {type(exc).__name__}: {exc}", flush=True)
                     self._json(502, {"error": str(exc)})
                 return
