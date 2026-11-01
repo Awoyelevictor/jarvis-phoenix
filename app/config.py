@@ -1,4 +1,4 @@
-"""Environment-based configuration for Jarvis-Phoenix."""
+"""Environment-based configuration for ULTRON."""
 from __future__ import annotations
 
 import os
@@ -6,7 +6,9 @@ from dataclasses import dataclass
 
 
 GEMINI_OPENAI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_GEMINI_MODEL = "gemini-3.8-flash"
+DEFAULT_OPENROUTER_MODEL = "openrouter/free"
 DEFAULT_TTS_MODEL = "gemini-3.8-flash-tts"
 
 
@@ -17,6 +19,7 @@ class Settings:
     cloud_base_url: str = GEMINI_OPENAI_BASE_URL
     cloud_api_key: str = ""
     cloud_model: str = DEFAULT_GEMINI_MODEL
+    tts_api_key: str = ""
     tts_model: str = DEFAULT_TTS_MODEL
     tts_voice: str = "Algenib"
     tts_style: str = "Deep, resonant, calm and authoritative cinematic delivery. Natural human cadence, measured pace, subtle warmth, clear articulation, and thoughtful pauses."
@@ -25,19 +28,30 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
+        cloud_base_url = os.getenv(
+            "PHOENIX_CLOUD_BASE_URL", GEMINI_OPENAI_BASE_URL
+        ).rstrip("/")
         return cls(
             local_base_url=os.getenv(
                 "PHOENIX_LOCAL_BASE_URL", "http://localhost:11434"
             ).rstrip("/"),
             local_model=os.getenv("PHOENIX_LOCAL_MODEL", "llama3.2:1b"),
-            cloud_base_url=os.getenv(
-                "PHOENIX_CLOUD_BASE_URL", GEMINI_OPENAI_BASE_URL
-            ).rstrip("/"),
+            cloud_base_url=cloud_base_url,
             cloud_api_key=(
-                os.getenv("GEMINI_API_KEY", "")
+                os.getenv("OPENROUTER_API_KEY", "")
                 or os.getenv("PHOENIX_CLOUD_API_KEY", "")
+                or os.getenv("GEMINI_API_KEY", "")
             ),
-            cloud_model=os.getenv("PHOENIX_CLOUD_MODEL", DEFAULT_GEMINI_MODEL),
+            cloud_model=os.getenv(
+                "PHOENIX_CLOUD_MODEL",
+                DEFAULT_OPENROUTER_MODEL
+                if "openrouter.ai" in cloud_base_url
+                else DEFAULT_GEMINI_MODEL,
+            ),
+            tts_api_key=(
+                os.getenv("GEMINI_API_KEY", "")
+                or os.getenv("PHOENIX_TTS_API_KEY", "")
+            ),
             tts_model=os.getenv("PHOENIX_TTS_MODEL", DEFAULT_TTS_MODEL),
             tts_voice=os.getenv("PHOENIX_TTS_VOICE", "Algenib"),
             tts_style=os.getenv(
