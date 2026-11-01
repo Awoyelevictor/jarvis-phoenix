@@ -1,6 +1,6 @@
 import json
 
-from app.config import Settings
+from app.config import DEFAULT_TTS_STYLE, Settings
 from app.speech import GeminiSpeechProvider
 from app.providers import ProviderError
 
@@ -19,7 +19,7 @@ class FakeResponse:
         return json.dumps(self.payload).encode("utf-8")
 
 
-def test_gemini_speech_returns_audio_and_uses_configured_voice(monkeypatch):
+def test_gemini_speech_returns_audio_and_applies_ultron_voice_direction(monkeypatch):
     captured = {}
 
     def fake_urlopen(request, timeout):
@@ -48,6 +48,10 @@ def test_gemini_speech_returns_audio_and_uses_configured_voice(monkeypatch):
     assert captured["url"].endswith("/models/gemini-3.8-flash-tts:generateContent")
     assert captured["payload"]["generationConfig"]["speechConfig"]["voiceConfig"]["prebuiltVoiceConfig"]["voiceName"] == "Algenib"
     assert captured["payload"]["generationConfig"]["responseModalities"] == ["AUDIO"]
+    prompt = captured["payload"]["contents"][0]["parts"][0]["text"]
+    assert DEFAULT_TTS_STYLE in prompt
+    assert "<response>\nHello, I am ULTRON.\n</response>" in prompt
+    assert "speech_metadata" not in captured["payload"]["contents"][0]["parts"][0]
 
 
 def test_gemini_speech_requires_api_key():
