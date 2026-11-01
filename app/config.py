@@ -13,6 +13,7 @@ class Settings:
     cloud_api_key: str = ""
     cloud_model: str = ""
     request_timeout: float = 90.0
+    conversation_history_messages: int = 20
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -23,4 +24,7 @@ class Settings:
             cloud_api_key=os.getenv("PHOENIX_CLOUD_API_KEY", ""),
             cloud_model=os.getenv("PHOENIX_CLOUD_MODEL", ""),
             request_timeout=float(os.getenv("PHOENIX_REQUEST_TIMEOUT", "90")),
+            conversation_history_messages=max(
+                2, int(os.getenv("PHOENIX_HISTORY_MESSAGES", "20"))
+            ),
         )
