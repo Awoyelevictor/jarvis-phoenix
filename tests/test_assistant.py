@@ -65,7 +65,7 @@ def test_local_is_used_when_cloud_fails():
 def test_conversation_context_is_sent_on_follow_up():
     assistant = make_assistant()
     assistant.cloud.answer = "first answer"
-    assistant.respond("Remember my project is Phoenix")
+    assistant.respond("My project is Phoenix")
 
     assistant.cloud.answer = "You are building Phoenix"
     assert assistant.respond("What is my project?") == "You are building Phoenix"
@@ -74,7 +74,7 @@ def test_conversation_context_is_sent_on_follow_up():
     assert second_request[0]["role"] == "system"
     assert second_request[1] == {
         "role": "user",
-        "content": "Remember my project is Phoenix",
+        "content": "My project is Phoenix",
     }
     assert second_request[2] == {
         "role": "assistant",
