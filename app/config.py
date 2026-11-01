@@ -10,6 +10,7 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_GEMINI_MODEL = "gemini-3.8-flash"
 DEFAULT_OPENROUTER_MODEL = "openrouter/free"
 DEFAULT_TTS_MODEL = "gemini-3.8-flash-tts"
+DEFAULT_TTS_STYLE = "Speak in a deep, resonant masculine voice with a controlled, slightly gravelly rasp and a subtle metallic, synthetic edge. The voice should feel intelligent, composed, authoritative, and quietly intimidating, like a sophisticated machine speaking through a natural human voice. Use measured pacing, deliberate pauses, precise American English pronunciation, and steady low-register delivery. Keep the sound rich and grounded rather than exaggerated, harsh, shouted, or cartoonishly robotic. Preserve natural conversational flow while maintaining a cool, calculating confidence."
 
 
 @dataclass(frozen=True)
@@ -22,7 +23,7 @@ class Settings:
     tts_api_key: str = ""
     tts_model: str = DEFAULT_TTS_MODEL
     tts_voice: str = "Algenib"
-    tts_style: str = "Deep, resonant, calm and authoritative cinematic delivery. Natural human cadence, measured pace, subtle warmth, clear articulation, and thoughtful pauses."
+    tts_style: str = DEFAULT_TTS_STYLE
     request_timeout: float = 90.0
     conversation_history_messages: int = 20
     memory_db_path: str = ""
@@ -49,10 +50,7 @@ class Settings:
             tts_api_key=os.getenv("PHOENIX_TTS_API_KEY", "") or os.getenv("GEMINI_API_KEY", ""),
             tts_model=os.getenv("PHOENIX_TTS_MODEL", DEFAULT_TTS_MODEL),
             tts_voice=os.getenv("PHOENIX_TTS_VOICE", "Algenib"),
-            tts_style=os.getenv(
-                "PHOENIX_TTS_STYLE",
-                "Deep, resonant, calm and authoritative cinematic delivery. Natural human cadence, measured pace, subtle warmth, clear articulation, and thoughtful pauses.",
-            ),
+            tts_style=os.getenv("PHOENIX_TTS_STYLE", DEFAULT_TTS_STYLE),
             request_timeout=float(os.getenv("PHOENIX_REQUEST_TIMEOUT", "90")),
             conversation_history_messages=max(2, int(os.getenv("PHOENIX_HISTORY_MESSAGES", "20"))),
             memory_db_path=os.getenv("ULTRON_MEMORY_DB", ""),
