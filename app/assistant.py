@@ -1,4 +1,4 @@
-"""Hybrid provider orchestration with in-session conversation context."""
+"""Hybrid Gemini-first provider orchestration with local fallback."""
 from __future__ import annotations
 
 from app.config import Settings
@@ -25,8 +25,6 @@ class Assistant:
         if not prompt:
             raise ValueError("Prompt cannot be empty.")
 
-        # Both providers receive the same pending conversation. Only commit it
-        # to memory after a provider successfully responds.
         pending = [*self.messages, {"role": "user", "content": prompt}]
         failures = []
 
@@ -46,8 +44,8 @@ class Assistant:
             failures.append(f"local: {exc}")
 
         raise ProviderError(
-            "No AI provider responded. Start Ollama and download the configured model, "
-            "or configure an optional OpenAI-compatible cloud endpoint. Details: "
+            "No AI provider responded. Check your Gemini API key and model access, "
+            "or start Ollama with the configured local model. Details: "
             + " | ".join(failures)
         )
 
@@ -56,12 +54,12 @@ class Assistant:
         local_ok = "is available." in local_detail
         if self.cloud.configured:
             cloud_detail = (
-                f"Configured endpoint: {self.settings.cloud_base_url} "
-                "(connectivity is checked when you send a message)."
+                f"Gemini-compatible endpoint configured: {self.settings.cloud_base_url} "
+                "(live connectivity is checked when you send a message)."
             )
         else:
-            cloud_detail = "Not configured (optional)."
+            cloud_detail = "Gemini API key not configured (optional)."
         return [
             ("Local Ollama", local_ok, local_detail),
-            ("Optional cloud", self.cloud.configured, cloud_detail),
+            ("Gemini cloud", self.cloud.configured, cloud_detail),
         ]
