@@ -18,7 +18,7 @@ class Settings:
     cloud_api_key: str = ""
     cloud_model: str = DEFAULT_GEMINI_MODEL
     tts_model: str = DEFAULT_TTS_MODEL
-    tts_voice: str = "Charon"
+    tts_voice: str = "Algenib"
     tts_style: str = "Deep, resonant, calm and authoritative cinematic delivery. Natural human cadence, measured pace, subtle warmth, clear articulation, and thoughtful pauses."
     request_timeout: float = 90.0
     conversation_history_messages: int = 20
@@ -39,7 +39,7 @@ class Settings:
             ),
             cloud_model=os.getenv("PHOENIX_CLOUD_MODEL", DEFAULT_GEMINI_MODEL),
             tts_model=os.getenv("PHOENIX_TTS_MODEL", DEFAULT_TTS_MODEL),
-            tts_voice=os.getenv("PHOENIX_TTS_VOICE", "Charon"),
+            tts_voice=os.getenv("PHOENIX_TTS_VOICE", "Algenib"),
             tts_style=os.getenv(
                 "PHOENIX_TTS_STYLE",
                 "Deep, resonant, calm and authoritative cinematic delivery. Natural human cadence, measured pace, subtle warmth, clear articulation, and thoughtful pauses.",
