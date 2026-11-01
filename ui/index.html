@@ -3,67 +3,47 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#101114">
-  <meta name="description" content="ULTRON — your personal hybrid AI assistant.">
+  <meta name="theme-color" content="#090a0d">
+  <meta name="description" content="ULTRON — voice-controlled personal AI.">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="stylesheet" href="/styles.css">
-  <title>ULTRON — AI Interface</title>
+  <title>ULTRON — Voice Interface</title>
 </head>
 <body>
-  <div class="app-shell">
-    <aside class="sidebar" id="sidebar">
-      <a class="brand" href="/" aria-label="ULTRON home">
-        <span class="brand-mark"><span></span></span>
-        <span><strong>ULTRON</strong><small>INTELLIGENCE SYSTEM</small></span>
-      </a>
-      <button class="new-chat" id="new-chat"><span>＋</span> New conversation</button>
-      <div class="side-label">WORKSPACE</div>
-      <button class="nav-item active"><span class="nav-icon">◈</span> Assistant</button>
-      <button class="nav-item" id="focus-chat"><span class="nav-icon">⌘</span> Chat interface</button>
-      <div class="sidebar-bottom">
-        <div class="system-card">
-          <div class="system-card-top"><span class="pulse"></span> SYSTEM STATUS</div>
-          <div class="system-line"><span>Gemini cloud</span><b id="cloud-state">Checking</b></div>
-          <div class="system-line"><span>Local engine</span><b id="local-state">Checking</b></div>
-        </div>
-        <div class="profile"><div class="avatar">U</div><div><strong>ULTRON CORE</strong><small>Personal assistant</small></div><span class="more">•••</span></div>
+  <main class="voice-shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark"></span><span><strong>ULTRON</strong><small>PERSONAL INTELLIGENCE</small></span></div>
+      <div class="system-state"><span class="state-light" id="state-light"></span><span id="state-label">STANDBY</span></div>
+    </header>
+
+    <section class="reactor-stage" aria-label="ULTRON voice core">
+      <div class="reactor" id="reactor">
+        <div class="reactor-halo halo-a"></div>
+        <div class="reactor-halo halo-b"></div>
+        <div class="reactor-ring ring-a"></div>
+        <div class="reactor-ring ring-b"></div>
+        <div class="reactor-ring ring-c"></div>
+        <div class="reactor-core"><div class="core-slit"></div><div class="core-point"></div></div>
+        <div class="reactor-shadow"></div>
       </div>
-    </aside>
+      <div class="voice-state" id="voice-state">SYSTEM STANDBY</div>
+      <p class="voice-hint" id="voice-hint">Tap the core to begin a voice session</p>
+    </section>
 
-    <main class="main">
-      <header class="topbar">
-        <button class="mobile-menu" id="menu-toggle" aria-label="Open menu">☰</button>
-        <div class="top-context"><span class="live-dot"></span><span>PERSONAL AI</span><i>/</i><b>Assistant</b></div>
-        <div class="top-actions"><span class="secure-label">● SECURE SESSION</span><button class="icon-button" id="refresh-status" title="Refresh system status">↻</button></div>
-      </header>
+    <section class="controls">
+      <button class="mic-button" id="mic-button" type="button" aria-label="Start voice conversation">
+        <span class="mic-symbol">🎙</span>
+        <span class="mic-ripple"></span>
+      </button>
+      <div class="control-caption" id="control-caption">ACTIVATE VOICE</div>
+      <button class="stop-button" id="stop-button" type="button" hidden>END SESSION</button>
+    </section>
 
-      <section class="workspace">
-        <div class="welcome" id="welcome">
-          <div class="core-orb"><div class="orb-ring ring-one"></div><div class="orb-ring ring-two"></div><div class="orb-eye"><span></span></div><div class="orb-glow"></div></div>
-          <div class="eyebrow"><span></span> ONLINE INTERFACE</div>
-          <h1>What can I help you<br><em>with today?</em></h1>
-          <p>Your intelligence. Your environment. Your command.</p>
-          <div class="suggestions">
-            <button class="suggestion" data-prompt="Give me a quick briefing on what you can do."><span>✳</span><b>Capabilities</b><small>Explore what ULTRON can do</small></button>
-            <button class="suggestion" data-prompt="Help me plan and organise my day."><span>◷</span><b>Plan my day</b><small>Turn ideas into action</small></button>
-            <button class="suggestion" data-prompt="Explain a complex technical topic in simple terms."><span>⌘</span><b>Learn something</b><small>Break down a difficult topic</small></button>
-          </div>
-        </div>
-
-        <section class="chat-area" id="chat-area" aria-live="polite">
-          <div class="messages" id="messages"></div>
-        </section>
-
-        <div class="composer-wrap">
-          <form class="composer" id="chat-form">
-            <textarea id="prompt" rows="1" placeholder="Message ULTRON..." aria-label="Message ULTRON" required></textarea>
-            <div class="composer-tools"><span class="composer-hint">ENTER TO SEND <i>·</i> SHIFT + ENTER FOR NEW LINE</span><button class="send-button" id="send-button" type="submit" aria-label="Send message">↑</button></div>
-          </form>
-          <div class="disclaimer">ULTRON can make mistakes. Verify important information.</div>
-        </div>
-      </section>
-    </main>
-  </div>
+    <footer class="footer">
+      <span>GEMINI INTELLIGENCE</span><span class="footer-separator">◆</span><span id="voice-engine">GEMINI TTS · CHARON</span>
+    </footer>
+  </main>
+  <audio id="ultron-audio" playsinline></audio>
   <div class="toast" id="toast" role="status"></div>
   <script src="/app.js" defer></script>
 </body>
