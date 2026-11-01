@@ -30,7 +30,12 @@ def make_handler(assistant: Assistant):
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
-            self.wfile.write(payload)
+            try:
+                self.wfile.write(payload)
+            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                # The browser may close a request while navigating/reloading.
+                # This is a disconnected client, not an application failure.
+                return
 
         def _json(self, status: int, data: dict) -> None:
             self._send(
@@ -104,6 +109,7 @@ def make_handler(assistant: Assistant):
                     audio, mime_type = speech.synthesize(text)
                     self._json(200, {"audio": audio, "mime_type": mime_type})
                 except ProviderError as exc:
+                    print(f"[ULTRON] Gemini voice provider failed: {exc}", flush=True)
                     self._json(502, {"error": str(exc)})
                 return
 
@@ -116,6 +122,9 @@ def make_handler(assistant: Assistant):
                     answer = assistant.respond(prompt)
                     self._json(200, {"reply": answer})
                 except Exception as exc:
+                    # Log the real provider failure before attempting to reply.
+                    # The browser may disconnect, which can otherwise hide this cause.
+                    print(f"[ULTRON] Chat provider failed: {type(exc).__name__}: {exc}", flush=True)
                     self._json(502, {"error": str(exc)})
                 return
 
