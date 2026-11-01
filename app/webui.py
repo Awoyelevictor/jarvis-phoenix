@@ -1,4 +1,4 @@
-"""Lightweight cross-platform browser UI for ULTRON."""
+"""Lightweight cross-platform browser UI and local API for ULTRON."""
 from __future__ import annotations
 
 import json
@@ -21,7 +21,7 @@ def make_handler(assistant: Assistant):
     speech = GeminiSpeechProvider(assistant.settings)
 
     class UltronHandler(BaseHTTPRequestHandler):
-        server_version = "ULTRON/0.2"
+        server_version = "ULTRON/0.3"
 
         def _send(self, status: int, payload: bytes, content_type: str) -> None:
             self.send_response(status)
@@ -59,11 +59,20 @@ def make_handler(assistant: Assistant):
                     "tts_voice": assistant.settings.tts_voice,
                     "voice_ready": bool(
                         assistant.settings.tts_api_key
-                        or (
-                            "generativelanguage.googleapis.com" in assistant.settings.cloud_base_url
-                            and assistant.settings.cloud_api_key
-                        )
+                        or ("generativelanguage.googleapis.com" in assistant.settings.cloud_base_url
+                            and assistant.settings.cloud_api_key)
                     ),
+                    "local_memory": True,
+                    "cloud_memory": assistant.memory.cloud_configured,
+                    "continuous_listening": True,
+                    "speaker_recognition": False,
+                })
+                return
+
+            if route == "/api/memories":
+                self._json(200, {
+                    "memories": assistant.memory.list(),
+                    "cloud_sync_available": assistant.memory.cloud_configured,
                 })
                 return
 
@@ -91,13 +100,37 @@ def make_handler(assistant: Assistant):
                 self._json(400, {"error": str(exc) or "Invalid request body."})
                 return
 
-            if route == "/api/reset":
-                assistant.reset_conversation()
-                self._json(200, {"ok": True})
-                return
-
             if not isinstance(body, dict):
                 self._json(400, {"error": "Invalid request body."})
+                return
+
+            if route == "/api/reset":
+                assistant.reset_conversation()
+                self._json(200, {"ok": True, "persistent_memories_preserved": True})
+                return
+
+            if route == "/api/memory":
+                content = body.get("content")
+                if not isinstance(content, str) or not content.strip():
+                    self._json(400, {"error": "Memory content is required."})
+                    return
+                try:
+                    item = assistant.memory.add(
+                        content,
+                        memory_type=body.get("memory_type", "conversation"),
+                        approved_for_cloud_sync=body.get("cloud_sync") is True,
+                    )
+                    self._json(201, {"ok": True, "memory": item})
+                except (ValueError, RuntimeError) as exc:
+                    self._json(502, {"error": str(exc)})
+                return
+
+            if route == "/api/memory/sync":
+                try:
+                    count = assistant.memory.sync_approved()
+                    self._json(200, {"ok": True, "synced": count})
+                except RuntimeError as exc:
+                    self._json(502, {"error": str(exc)})
                 return
 
             if route == "/api/voice":
@@ -128,6 +161,21 @@ def make_handler(assistant: Assistant):
 
             self._json(404, {"error": "Not found"})
 
+        def do_DELETE(self) -> None:
+            route = urlparse(self.path).path
+            if route != "/api/memory":
+                self._json(404, {"error": "Not found"})
+                return
+            try:
+                body = self._read_json()
+                memory_id = body.get("id") if isinstance(body, dict) else None
+                if not isinstance(memory_id, str):
+                    raise ValueError("Memory id is required.")
+                deleted = assistant.memory.delete(memory_id)
+                self._json(200, {"ok": True, "deleted": deleted})
+            except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+                self._json(400, {"error": str(exc)})
+
         def log_message(self, fmt: str, *args) -> None:
             if self.path.startswith("/api/"):
                 return
@@ -143,6 +191,7 @@ def serve_ui(settings: Settings, host: str = "127.0.0.1", port: int = 8765) -> N
     server = ThreadingHTTPServer((host, port), make_handler(assistant))
     print("\nULTRON voice interface is ready.")
     print(f"Open this address in your browser: http://{host}:{port}")
+    print("Local memory is enabled. Cloud memory requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.")
     print("Keep this process running while you use ULTRON. Press Ctrl+C to stop.")
     try:
         server.serve_forever()
