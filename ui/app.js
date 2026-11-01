@@ -168,6 +168,7 @@ async function processUtterance(text) {
   } finally {
     busy = false;
     if (sessionActive && queuedUtterance) {
+      stopUltronSpeech();
       const next = queuedUtterance;
       queuedUtterance = "";
       processUtterance(next);
