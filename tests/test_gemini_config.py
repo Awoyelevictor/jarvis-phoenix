@@ -24,8 +24,15 @@ def test_gemini_is_the_default_cloud_target(monkeypatch):
 
 
 def test_gemini_api_key_is_loaded_without_exposing_it(monkeypatch):
+    # Isolate this Gemini-specific test from a developer's active provider.
+    # Termux/.env may configure OpenRouter globally.
+    for name in (
+        "PHOENIX_CLOUD_BASE_URL",
+        "PHOENIX_CLOUD_API_KEY",
+        "OPENROUTER_API_KEY",
+    ):
+        monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
-    monkeypatch.delenv("PHOENIX_CLOUD_API_KEY", raising=False)
 
     settings = Settings.from_env()
 
