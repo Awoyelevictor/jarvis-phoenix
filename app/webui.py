@@ -9,14 +9,19 @@ from urllib.parse import urlparse
 
 from app.assistant import Assistant
 from app.config import Settings
+from app.providers import ProviderError
+from app.speech import GeminiSpeechProvider
 
 UI_DIR = Path(__file__).resolve().parent.parent / "ui"
 MAX_BODY_BYTES = 64 * 1024
+MAX_SPEECH_CHARS = 6000
 
 
 def make_handler(assistant: Assistant):
+    speech = GeminiSpeechProvider(assistant.settings)
+
     class UltronHandler(BaseHTTPRequestHandler):
-        server_version = "ULTRON/0.1"
+        server_version = "ULTRON/0.2"
 
         def _send(self, status: int, payload: bytes, content_type: str) -> None:
             self.send_response(status)
@@ -34,6 +39,12 @@ def make_handler(assistant: Assistant):
                 "application/json; charset=utf-8",
             )
 
+        def _read_json(self):
+            length = int(self.headers.get("Content-Length", "0"))
+            if length <= 0 or length > MAX_BODY_BYTES:
+                raise ValueError("Request is empty or too large.")
+            return json.loads(self.rfile.read(length).decode("utf-8"))
+
         def do_GET(self) -> None:
             route = urlparse(self.path).path
             if route == "/api/status":
@@ -45,8 +56,16 @@ def make_handler(assistant: Assistant):
                     "name": "ULTRON",
                     "providers": providers,
                     "cloud_model": assistant.settings.cloud_model,
-                    "local_model": assistant.settings.local_model,
+                    "tts_model": assistant.settings.tts_model,
+                    "tts_voice": assistant.settings.tts_voice,
+                    "voice_ready": bool(assistant.settings.cloud_api_key),
                 })
+                return
+
+            if route == "/favicon.ico":
+                self.send_response(204)
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
                 return
 
             requested = "index.html" if route in {"/", "/index.html"} else route.lstrip("/")
@@ -60,28 +79,49 @@ def make_handler(assistant: Assistant):
             self._send(200, target.read_bytes(), f"{content_type}; charset=utf-8")
 
         def do_POST(self) -> None:
-            if urlparse(self.path).path != "/api/chat":
-                self._json(404, {"error": "Not found"})
-                return
+            route = urlparse(self.path).path
             try:
-                length = int(self.headers.get("Content-Length", "0"))
-                if length <= 0 or length > MAX_BODY_BYTES:
-                    self._json(413, {"error": "Message is empty or too large."})
+                body = self._read_json()
+            except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+                self._json(400, {"error": str(exc) or "Invalid request body."})
+                return
+
+            if route == "/api/reset":
+                assistant.reset_conversation()
+                self._json(200, {"ok": True})
+                return
+
+            if not isinstance(body, dict):
+                self._json(400, {"error": "Invalid request body."})
+                return
+
+            if route == "/api/voice":
+                text = body.get("text")
+                if not isinstance(text, str) or not text.strip() or len(text) > MAX_SPEECH_CHARS:
+                    self._json(400, {"error": "Speech text is empty or too long."})
                     return
-                body = json.loads(self.rfile.read(length).decode("utf-8"))
-                prompt = body.get("prompt") if isinstance(body, dict) else None
+                try:
+                    audio, mime_type = speech.synthesize(text)
+                    self._json(200, {"audio": audio, "mime_type": mime_type})
+                except ProviderError as exc:
+                    self._json(502, {"error": str(exc)})
+                return
+
+            if route == "/api/chat":
+                prompt = body.get("prompt")
                 if not isinstance(prompt, str) or not prompt.strip():
                     self._json(400, {"error": "Enter a message first."})
                     return
-                answer = assistant.respond(prompt)
-                self._json(200, {"reply": answer})
-            except (UnicodeDecodeError, json.JSONDecodeError):
-                self._json(400, {"error": "Invalid request body."})
-            except Exception as exc:
-                self._json(502, {"error": str(exc)})
+                try:
+                    answer = assistant.respond(prompt)
+                    self._json(200, {"reply": answer})
+                except Exception as exc:
+                    self._json(502, {"error": str(exc)})
+                return
+
+            self._json(404, {"error": "Not found"})
 
         def log_message(self, fmt: str, *args) -> None:
-            # Keep normal chat content out of the terminal log.
             if self.path.startswith("/api/"):
                 return
             super().log_message(fmt, *args)
@@ -94,7 +134,7 @@ def serve_ui(settings: Settings, host: str = "127.0.0.1", port: int = 8765) -> N
         raise RuntimeError("ULTRON UI files are missing from the ui/ directory.")
     assistant = Assistant(settings)
     server = ThreadingHTTPServer((host, port), make_handler(assistant))
-    print("\nULTRON interface is ready.")
+    print("\nULTRON voice interface is ready.")
     print(f"Open this address in your browser: http://{host}:{port}")
     print("Keep this process running while you use ULTRON. Press Ctrl+C to stop.")
     try:
