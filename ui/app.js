@@ -8,6 +8,9 @@ let audioContext = null;
 let analyser = null;
 let playbackSource = null;
 let animationFrame = 0;
+let activeSpeechText = "";
+let interruptionTimer = null;
+let restartTimer = null;
 
 function toast(message) {
   const el = $("toast");
@@ -48,10 +51,8 @@ function animateAudio() {
     for (const value of samples) sum += value * value;
     const rms = Math.sqrt(sum / samples.length);
     const pitch = estimatePitch(samples, audioContext.sampleRate);
-    const energy = Math.min(1, rms * 5.5);
-    const pitchNorm = pitch ? Math.max(0, Math.min(1, (pitch - 75) / 285)) : .35;
-    document.documentElement.style.setProperty("--voice-energy", energy.toFixed(3));
-    document.documentElement.style.setProperty("--voice-pitch", pitchNorm.toFixed(3));
+    document.documentElement.style.setProperty("--voice-energy", Math.min(1, rms * 5.5).toFixed(3));
+    document.documentElement.style.setProperty("--voice-pitch", (pitch ? Math.max(0, Math.min(1, (pitch - 75) / 285)) : .35).toFixed(3));
     animationFrame = requestAnimationFrame(tick);
   };
   cancelAnimationFrame(animationFrame);
@@ -66,13 +67,30 @@ async function prepareAudio() {
     analyser.connect(audioContext.destination);
   }
 }
+function normalized(text) {
+  return (text || "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+}
+function looksLikeEcho(text) {
+  const heard = normalized(text);
+  const spoken = normalized(activeSpeechText);
+  return heard.length > 5 && spoken && (spoken.includes(heard) || heard.includes(spoken));
+}
+function stopUltronSpeech() {
+  if (!playbackSource) return;
+  const source = playbackSource;
+  playbackSource = null;
+  try { source.stop(); } catch {}
+  resetGlow();
+}
 function createRecognition() {
   recognition = new SpeechRecognition();
   recognition.lang = navigator.language || "en-NG";
-  recognition.continuous = false;
-  recognition.interimResults = false;
+  recognition.continuous = true;
+  recognition.interimResults = true;
   recognition.maxAlternatives = 1;
-  recognition.onstart = () => setMode("listening", "LISTENING", "I'm listening. Speak naturally.");
+  recognition.onstart = () => {
+    if (sessionActive && !playbackSource && !busy) setMode("listening", "LISTENING", "I'm listening. Speak naturally.");
+  };
   recognition.onerror = (event) => {
     if (event.error === "not-allowed" || event.error === "service-not-allowed") {
       sessionActive = false;
@@ -83,25 +101,53 @@ function createRecognition() {
     }
   };
   recognition.onresult = (event) => {
+    let interim = "";
     for (let i = event.resultIndex; i < event.results.length; i++) {
-      if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript;
+      const transcript = event.results[i][0].transcript.trim();
+      if (event.results[i].isFinal) finalTranscript += (finalTranscript ? " " : "") + transcript;
+      else interim += " " + transcript;
+    }
+
+    if (playbackSource && interim.trim() && !looksLikeEcho(interim)) {
+      stopUltronSpeech();
+      setMode("listening", "INTERRUPTED", "I have the floor back. Go ahead, Creator.");
+      clearTimeout(interruptionTimer);
+      interruptionTimer = setTimeout(() => {
+        if (sessionActive && !finalTranscript.trim() && !busy) {
+          speak("I thought you were saying something, Creator. Do continue.");
+        }
+      }, 2600);
+    }
+
+    if (finalTranscript.trim()) {
+      const spoken = finalTranscript.trim();
+      finalTranscript = "";
+      clearTimeout(interruptionTimer);
+      if (playbackSource && looksLikeEcho(spoken)) return;
+      if (playbackSource) stopUltronSpeech();
+      if (sessionActive && !busy) processUtterance(spoken);
+      else if (sessionActive && busy) {
+        // An active request is still being generated; queue the interruption.
+        queuedUtterance = spoken;
+      }
     }
   };
   recognition.onend = () => {
-    if (!sessionActive || busy) return;
-    const spoken = finalTranscript.trim();
-    finalTranscript = "";
-    if (spoken) processUtterance(spoken);
-    else if (sessionActive) startListening();
+    if (!sessionActive) return;
+    clearTimeout(restartTimer);
+    restartTimer = setTimeout(() => {
+      if (!sessionActive || !recognition) return;
+      try { recognition.start(); } catch {}
+    }, 250);
   };
 }
+let queuedUtterance = "";
 function startListening() {
-  if (!sessionActive || busy || !recognition) return;
-  finalTranscript = "";
-  try { recognition.start(); }
-  catch { setTimeout(() => { if (sessionActive && !busy) startListening(); }, 450); }
+  if (!sessionActive || !recognition) return;
+  try { recognition.start(); } catch {}
 }
 async function processUtterance(text) {
+  if (busy) { queuedUtterance = text; return; }
   busy = true;
   setMode("thinking", "PROCESSING", "One moment. I'm working on that.");
   try {
@@ -116,13 +162,20 @@ async function processUtterance(text) {
   } catch (error) {
     if (sessionActive) {
       toast(error.message);
-      setMode("error", "CONNECTION ERROR", "Check Gemini connectivity and try speaking again.");
-      await new Promise(resolve => setTimeout(resolve, 1600));
+      setMode("error", "CONNECTION ERROR", "Check your AI provider and try speaking again.");
+      await new Promise(resolve => setTimeout(resolve, 1400));
     }
   } finally {
     busy = false;
-    if (sessionActive && !playbackSource) startListening();
-    else if (!sessionActive) setMode("standby", "SYSTEM STANDBY", "Tap the core to begin a voice session");
+    if (sessionActive && queuedUtterance) {
+      const next = queuedUtterance;
+      queuedUtterance = "";
+      processUtterance(next);
+    } else if (sessionActive && !playbackSource) {
+      setMode("listening", "LISTENING", "I'm listening. You can speak at any time.");
+    } else if (!sessionActive) {
+      setMode("standby", "SYSTEM STANDBY", "Tap the core to begin a voice session");
+    }
   }
 }
 async function speak(text) {
@@ -140,30 +193,34 @@ async function speak(text) {
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   const audioBuffer = await audioContext.decodeAudioData(bytes.buffer);
   if (!sessionActive) return;
+  activeSpeechText = text;
   playbackSource = audioContext.createBufferSource();
-  playbackSource.buffer = audioBuffer;
-  playbackSource.connect(analyser);
-  playbackSource.onended = () => {
+  const source = playbackSource;
+  source.buffer = audioBuffer;
+  source.connect(analyser);
+  source.onended = () => {
+    if (playbackSource !== source) return;
     playbackSource = null;
+    activeSpeechText = "";
     resetGlow();
-    if (sessionActive && !busy) startListening();
+    if (sessionActive && !busy) setMode("listening", "LISTENING", "I'm listening. You can interrupt me at any time.");
     else if (!sessionActive) setMode("standby", "SYSTEM STANDBY", "Tap the core to begin a voice session");
   };
-  setMode("speaking", "ULTRON IS SPEAKING", "Reactor responding to live voice pitch and intensity");
+  setMode("speaking", "ULTRON IS SPEAKING", "Speak at any time to interrupt.");
   $("mic-button").classList.remove("active");
-  $("control-caption").textContent = "VOICE OUTPUT";
-  playbackSource.start();
+  $("control-caption").textContent = "VOICE OUTPUT · MIC ACTIVE";
+  source.start();
   animateAudio();
 }
 function updateControls() {
-  $("mic-button").classList.toggle("active", sessionActive && !busy);
+  $("mic-button").classList.toggle("active", sessionActive);
   $("mic-button").setAttribute("aria-label", sessionActive ? "End voice conversation" : "Start voice conversation");
-  $("control-caption").textContent = sessionActive ? "VOICE SESSION ACTIVE" : "ACTIVATE VOICE";
+  $("control-caption").textContent = sessionActive ? "ALWAYS LISTENING" : "ACTIVATE VOICE";
   $("stop-button").hidden = !sessionActive;
 }
 async function startSession() {
   if (!SpeechRecognition) {
-    toast("Speech recognition is unavailable. Use the latest Chrome browser.");
+    toast("Continuous speech recognition is unavailable in this browser. Try the latest Chrome.");
     return;
   }
   try {
@@ -179,16 +236,17 @@ async function startSession() {
 function stopSession() {
   sessionActive = false;
   busy = false;
+  queuedUtterance = "";
+  clearTimeout(interruptionTimer);
+  clearTimeout(restartTimer);
   try { recognition?.stop(); } catch {}
-  if (playbackSource) {
-    try { playbackSource.stop(); } catch {}
-    playbackSource = null;
-  }
+  recognition = null;
+  stopUltronSpeech();
   resetGlow();
   updateControls();
   setMode("standby", "SYSTEM STANDBY", "Tap the core to begin a voice session");
 }
 $("mic-button").addEventListener("click", () => sessionActive ? stopSession() : startSession());
 $("stop-button").addEventListener("click", stopSession);
-$("voice-engine").textContent = "GEMINI 3.8 TTS · ALGENIB";
+$("voice-engine").textContent = "GEMINI TTS · ALGENIB · INTERRUPTIBLE";
 if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
