@@ -11,7 +11,7 @@ from app.providers import ProviderError
 
 
 class GeminiSpeechProvider:
-    """Generate natural speech audio with Google's Gemini TTS API."""
+    """Generate ULTRON's directed voice with Google's Gemini TTS API."""
 
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -27,6 +27,17 @@ class GeminiSpeechProvider:
         if not text:
             raise ProviderError("There is no response to speak.")
 
+        # Gemini TTS takes vocal direction as natural-language prompt text.
+        # Keep the spoken response clearly separated so the instructions are
+        # performed, not read aloud.
+        style = self.settings.tts_style.strip()
+        speech_prompt = (
+            f"{style}\n\n"
+            "Speak the following response exactly as written. Do not speak these "
+            "voice instructions, add an introduction, or omit any words:\n"
+            f"<response>\n{text}\n</response>"
+        )
+
         url = (
             "https://generativelanguage.googleapis.com/v1beta/models/"
             f"{self.settings.tts_model}:generateContent"
@@ -34,17 +45,14 @@ class GeminiSpeechProvider:
         payload = {
             "contents": [{
                 "role": "user",
-                "parts": [{
-                    "text": text,
-                    "speech_metadata": {
-                        "style": self.settings.tts_style
-                    },
-                }],
+                "parts": [{"text": speech_prompt}],
             }],
             "generationConfig": {
                 "responseModalities": ["AUDIO"],
                 "speechConfig": {
-                    "voiceConfig": {"prebuiltVoiceConfig": {"voiceName": self.settings.tts_voice}}
+                    "voiceConfig": {
+                        "prebuiltVoiceConfig": {"voiceName": self.settings.tts_voice}
+                    }
                 },
             },
         }
