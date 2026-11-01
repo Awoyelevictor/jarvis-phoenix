@@ -71,15 +71,16 @@ def test_conversation_context_is_sent_on_follow_up():
     assert assistant.respond("What is my project?") == "You are building Phoenix"
 
     second_request = assistant.cloud.calls[1]
-    assert second_request[0] == {
+    assert second_request[0]["role"] == "system"
+    assert second_request[1] == {
         "role": "user",
         "content": "Remember my project is Phoenix",
     }
-    assert second_request[1] == {
+    assert second_request[2] == {
         "role": "assistant",
         "content": "first answer",
     }
-    assert second_request[2] == {
+    assert second_request[3] == {
         "role": "user",
         "content": "What is my project?",
     }
