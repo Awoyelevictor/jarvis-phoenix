@@ -1,4 +1,4 @@
-"""Hybrid Gemini-first provider orchestration with local fallback."""
+"""Hybrid cloud-first provider orchestration with optional local fallback."""
 from __future__ import annotations
 
 from app.config import Settings
@@ -44,7 +44,7 @@ class Assistant:
             failures.append(f"local: {exc}")
 
         raise ProviderError(
-            "No AI provider responded. Check your Gemini API key and model access, "
+            "No AI provider responded. Check your configured cloud API key/model, "
             "or start Ollama with the configured local model. Details: "
             + " | ".join(failures)
         )
@@ -54,12 +54,12 @@ class Assistant:
         local_ok = "is available." in local_detail
         if self.cloud.configured:
             cloud_detail = (
-                f"Gemini-compatible endpoint configured: {self.settings.cloud_base_url} "
-                "(live connectivity is checked when you send a message)."
+                f"Cloud endpoint configured: {self.settings.cloud_base_url} "
+                f"(model: {self.settings.cloud_model}; live connectivity is checked when you send a message)."
             )
         else:
-            cloud_detail = "Gemini API key not configured (optional)."
+            cloud_detail = "Cloud API key not configured (optional)."
         return [
             ("Local Ollama", local_ok, local_detail),
-            ("Gemini cloud", self.cloud.configured, cloud_detail),
+            ("Cloud AI", self.cloud.configured, cloud_detail),
         ]
