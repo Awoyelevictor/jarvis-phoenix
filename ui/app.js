@@ -1,6 +1,10 @@
 const $ = (id) => document.getElementById(id);
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recognition = null;
+let microphoneStream = null;
+let mediaRecorder = null;
+let recordedChunks = [];
+let recorderFallback = false;
 let sessionActive = false;
 let busy = false;
 let finalTranscript = "";
@@ -58,10 +62,10 @@ function estimatePitch(samples, sampleRate) {
   return bestLag ? sampleRate / bestLag : 0;
 }
 function animateAudio() {
-  if (!analyser || !playbackSource) return;
+  if (!analyser || (!playbackSource && !microphoneStream)) return;
   const samples = new Float32Array(analyser.fftSize);
   const tick = () => {
-    if (!playbackSource) return;
+    if (!playbackSource && !microphoneStream) { resetGlow(); return; }
     analyser.getFloatTimeDomainData(samples);
     let sum = 0;
     for (const value of samples) sum += value * value;
@@ -260,24 +264,58 @@ async function speak(text) {
   animateAudio();
 }
 function updateControls() {
-  $("mic-button").classList.toggle("active", sessionActive);
-  $("mic-button").setAttribute("aria-label", sessionActive ? "End voice conversation" : "Start voice conversation");
+  $("mic-button")?.classList.toggle("active", sessionActive);
+  $("mic-button")?.setAttribute("aria-label", sessionActive ? "End voice conversation" : "Start voice conversation");
+  $("robotHeadWrapper")?.classList.toggle("voice-active",sessionActive);
+  $("robotHeadWrapper")?.setAttribute("aria-pressed",String(sessionActive));
+  $("robotHeadWrapper")?.setAttribute("aria-label",sessionActive?"Tap to send your voice message":"Tap to speak with ULTRON");
   $("control-caption").textContent = sessionActive ? "VOICE SESSION ACTIVE" : "ACTIVATE VOICE";
   $("stop-button").hidden = !sessionActive;
 }
 async function startSession() {
-  if (!SpeechRecognition) {
-    toast("Continuous speech recognition is unavailable here. Try the latest Chrome browser.");
-    return;
-  }
   try {
     await prepareAudio();
-    createRecognition();
     sessionActive = true;
-    updateControls();
-    logEvent("Voice session activated");
-    startListening();
-  } catch (error) { toast(error.message || "Could not start voice session."); }
+    if (SpeechRecognition) {
+      createRecognition(); recorderFallback = false; updateControls();
+      logEvent("Browser speech recognition activated"); startListening(); return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) throw new Error("This browser cannot record audio. Open ULTRON in current Chrome and allow microphone access.");
+    microphoneStream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+    recorderFallback = true; updateControls(); logEvent("Microphone recorder activated"); startFallbackRecording();
+  } catch (error) {
+    sessionActive=false; updateControls(); logEvent("Microphone activation failed");
+    toast(error.name==="NotAllowedError"?"Microphone permission denied. Allow microphone access for 127.0.0.1 in Chrome settings.":(error.message||"Could not start microphone."));
+    setMode("error","MICROPHONE ERROR","Allow microphone access and tap the head again.");
+  }
+}
+function startFallbackRecording() {
+  if(!sessionActive||!microphoneStream||mediaRecorder)return;
+  recordedChunks=[];
+  const mimeType=["audio/webm;codecs=opus","audio/webm","audio/mp4"].find(type=>MediaRecorder.isTypeSupported(type));
+  mediaRecorder=new MediaRecorder(microphoneStream,mimeType?{mimeType}:undefined);
+  mediaRecorder.ondataavailable=event=>{if(event.data?.size)recordedChunks.push(event.data)};
+  mediaRecorder.onerror=()=>toast("Microphone recording failed.");
+  mediaRecorder.onstop=async()=>{
+    const current=mediaRecorder;mediaRecorder=null;
+    const blob=new Blob(recordedChunks,{type:current?.mimeType||"audio/webm"});recordedChunks=[];
+    if(!blob.size){if(sessionActive)startFallbackRecording();return}
+    try{
+      setMode("thinking","TRANSCRIBING","ULTRON is converting your speech.");
+      const audio=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]||"");reader.onerror=()=>reject(new Error("Could not read microphone audio."));reader.readAsDataURL(blob)});
+      const response=await fetch("/api/transcribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({audio,mime_type:blob.type||"audio/webm"})});
+      const data=await response.json();if(!response.ok)throw new Error(data.error||"Speech transcription failed.");
+      if(data.transcript?.trim())await processUtterance(data.transcript.trim());else toast("No clear speech detected. Tap the head and try again.");
+    }catch(error){toast(error.message||"Speech transcription failed.");logEvent("Transcription failed")}
+    finally{if(sessionActive){setMode("listening","LISTENING","Tap the head to finish your message.");startFallbackRecording()}}
+  };
+  mediaRecorder.start();setMode("listening","LISTENING","Microphone active. Tap the head to send your message.");
+}
+async function toggleHeadVoice(){
+  $("ultronAssistantConsole")?.classList.add("open");
+  if(!sessionActive)return startSession();
+  if(recorderFallback&&mediaRecorder?.state==="recording"){mediaRecorder.stop();return}
+  stopSession();
 }
 function stopSession() {
   sessionActive = false;
@@ -287,6 +325,8 @@ function stopSession() {
   clearTimeout(restartTimer);
   try { recognition?.stop(); } catch {}
   recognition = null;
+  if(mediaRecorder&&mediaRecorder.state!=="inactive"){try{mediaRecorder.stop()}catch{}}
+  mediaRecorder=null;microphoneStream?.getTracks().forEach(track=>track.stop());microphoneStream=null;recorderFallback=false;
   stopUltronSpeech();
   resetGlow();
   updateControls();
@@ -333,7 +373,8 @@ async function resetConversation() {
     toast("Conversation reset. Saved memories were preserved.");
   } catch (error) { toast(error.message); }
 }
-$("mic-button").addEventListener("click", () => sessionActive ? stopSession() : startSession());
+$("robotHeadWrapper")?.addEventListener("click",toggleHeadVoice);
+$("mic-button")?.addEventListener("click",toggleHeadVoice);
 $("stop-button").addEventListener("click", stopSession);
 $("chat-form").addEventListener("submit", event => {
   event.preventDefault();
