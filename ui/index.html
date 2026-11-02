@@ -194,6 +194,7 @@
        METALLIC ROBOT HEAD OVERLAY STYLES (Centered on top of the Red Core Glow)
        ========================================================================== */
     .robot-head-wrapper {
+      appearance:none; border:0; padding:0; background:transparent; cursor:pointer; -webkit-tap-highlight-color:transparent;
       position: absolute;
       top: 50%;
       left: 50%;
@@ -204,8 +205,13 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      pointer-events: none;
+      pointer-events: auto;
+      outline:none;
     }
+    .head-audio-aura{position:absolute;inset:2%;border-radius:50%;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,transparent 42%,rgba(255,20,5,.12) 56%,rgba(255,25,8,.55) 72%,transparent 84%);filter:blur(calc(4px + var(--voice-energy,0)*18px));transition:opacity .1s ease}
+    body[data-mode="listening"] .head-audio-aura,body[data-mode="speaking"] .head-audio-aura{opacity:calc(.25 + var(--voice-energy,0)*.75)}
+    body[data-mode="speaking"] .robot-head-img{filter:drop-shadow(0 0 calc(12px + var(--voice-energy,0)*34px) rgba(255,25,12,.95)) drop-shadow(0 0 calc(18px + var(--voice-pitch,.5)*30px) rgba(255,35,15,.8)) drop-shadow(0 14px 28px rgba(0,0,0,.9));transform:scale(calc(1 + var(--voice-energy,0)*.025))}
+    body[data-mode="listening"] .robot-head-img{filter:drop-shadow(0 0 24px rgba(255,35,15,.9)) drop-shadow(0 0 48px rgba(200,10,5,.55))}
 
     .robot-head-img {
       width: 100%;
@@ -303,6 +309,8 @@
 #ultronAssistantConsole #toast.show{display:block}#ultronAssistantConsole #clock{font:10px 'Share Tech Mono',monospace;color:#aab5c2}
 #ultronAssistantConsole .uc-metrics{display:flex;gap:12px;padding:8px 14px;border-top:1px solid rgba(255,255,255,.08);font:10px 'Share Tech Mono',monospace;color:#aab5c2;flex-wrap:wrap}
 #chat-launcher{cursor:pointer;pointer-events:auto}#chat-launcher:focus-visible{outline:2px solid #ff654e;outline-offset:4px}
+#ultronAssistantConsole .uc-actions,#ultronAssistantConsole .uc-form{display:none!important}
+.robot-head-wrapper:focus-visible{filter:drop-shadow(0 0 20px rgba(255,55,25,.95))}
 @media(max-width:768px){#ultronAssistantConsole{right:10px;bottom:10px;width:calc(100vw - 20px);height:min(76dvh,680px)}}
 </style>
 </head>
@@ -616,7 +624,7 @@
              PUT YOUR TRANSPARENT ROBOT HEAD IMAGE HERE
              Replace src="ultron-head.png" with your file path or upload via top bar
              ========================================================================== -->
-        <div class="robot-head-wrapper" id="robotHeadWrapper">
+        <button class="robot-head-wrapper" id="robotHeadWrapper" type="button" aria-label="Tap to speak with ULTRON" aria-pressed="false" title="Tap to speak with ULTRON">
           <img
             id="robot-head-img"
             src="ultron-head.png"
@@ -625,7 +633,8 @@
             onload="this.classList.remove('img-not-loaded')"
             onerror="this.classList.add('img-not-loaded')"
           />
-        </div>
+          <span class="head-audio-aura" aria-hidden="true"></span>
+        </button>
       </div>
 
       <!-- ======================================================================================== -->
@@ -1155,7 +1164,7 @@
 <div id="toast" role="status"></div><div id="overall-status" hidden>STANDBY</div><div id="overall-detail" hidden>Awaiting activation</div><div id="state-label" hidden>STANDBY</div><div id="voice-hint" hidden>Text channel active.</div><div id="system-log-lines" hidden></div><div id="cloud-bar" hidden></div><div id="voice-bar" hidden></div><div id="memory-bar" hidden></div><div id="voice-engine" hidden></div>
 </section>
 <script defer>
-(()=>{const panel=document.getElementById('ultronAssistantConsole');const launcher=document.getElementById('chat-launcher');const close=document.getElementById('closeAssistantConsole');const toggle=()=>{panel.classList.toggle('open');if(panel.classList.contains('open'))document.getElementById('chat-input').focus()};launcher?.addEventListener('click',toggle);launcher?.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle()}});close?.addEventListener('click',()=>panel.classList.remove('open'));document.addEventListener('keydown',e=>{if(e.key==='Escape')panel.classList.remove('open')})})();
+(()=>{const panel=document.getElementById('ultronAssistantConsole');const launcher=document.getElementById('chat-launcher');const close=document.getElementById('closeAssistantConsole');const toggle=()=>{panel.classList.toggle('open')};launcher?.addEventListener('click',toggle);launcher?.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle()}});close?.addEventListener('click',()=>panel.classList.remove('open'));document.addEventListener('keydown',e=>{if(e.key==='Escape')panel.classList.remove('open')})})();
 </script>
 </body>
 </html>
