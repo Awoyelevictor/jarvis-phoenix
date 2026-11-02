@@ -1,94 +1,1126 @@
-<!doctype html>
+
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#09090d">
-  <meta name="description" content="ULTRON V7.0 — personal intelligence command interface.">
-  <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="stylesheet" href="/styles.css">
-  <title>ULTRON V7.0 — Command Interface</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>..ULTRON // Artificial Intelligence Version 7.0</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700;800;900&family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --red-neon: #ff2a12;
+      --red-hot: #ff5522;
+      --red-crimson: #c80e08;
+      --red-dark: #420404;
+      --text-white: #e8edf2;
+      --text-silver: #a8b2bd;
+      --text-muted: #6e7885;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      background-color: #000000;
+      color: var(--text-white);
+      font-family: 'Rajdhani', sans-serif;
+      min-height: 100vh;
+      width: 100vw;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow-x: hidden;
+      padding: 12px;
+    }
+
+    /* Responsive Scaling Wrapper so the 1:1 HUD looks identical on all screens */
+    .hud-viewport-scaler {
+      width: 100%;
+      max-width: 1280px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Main 16:10.2 Artwork Frame matching screenshot */
+    .ultron-screen {
+      position: relative;
+      width: 1280px;
+      height: 816px;
+      background-color: #060608;
+      background-image:
+        /* Center crimson volumetric glow */
+        radial-gradient(circle at 50% 48%, rgba(190, 15, 8, 0.34) 0%, rgba(95, 5, 4, 0.22) 26%, rgba(12, 8, 10, 0.94) 56%, #050507 100%),
+        /* Right-side cold industrial blue-grey structures reflection */
+        radial-gradient(ellipse at 94% 55%, rgba(42, 62, 84, 0.22) 0%, rgba(18, 26, 36, 0.12) 32%, transparent 60%),
+        radial-gradient(ellipse at 92% 72%, rgba(36, 54, 72, 0.18) 0%, transparent 45%),
+        /* Top-left & top-right crimson corner flares */
+        radial-gradient(ellipse at 12% 4%, rgba(255, 32, 12, 0.22) 0%, transparent 38%),
+        radial-gradient(ellipse at 88% 4%, rgba(255, 32, 12, 0.18) 0%, transparent 38%),
+        radial-gradient(ellipse at 16% 96%, rgba(255, 28, 10, 0.18) 0%, transparent 35%),
+        radial-gradient(ellipse at 85% 94%, rgba(255, 28, 10, 0.16) 0%, transparent 35%);
+      border: 1px solid rgba(255, 38, 18, 0.38);
+      box-shadow:
+        0 0 50px rgba(255, 18, 8, 0.22),
+        inset 0 0 90px rgba(0, 0, 0, 0.92),
+        inset 0 0 22px rgba(255, 24, 10, 0.18);
+      overflow: hidden;
+      flex-shrink: 0;
+      transform-origin: center center;
+    }
+
+    /* Subtle Industrial Sci-Fi Background Pillars, Grid & Scanlines */
+    .bg-industrial-texture {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+      background-image:
+        /* Fine CRT scanlines */
+        repeating-linear-gradient(
+          0deg,
+          rgba(255, 255, 255, 0.012) 0px,
+          rgba(255, 255, 255, 0.012) 1px,
+          transparent 1px,
+          transparent 3px
+        ),
+        /* Faint micro grid */
+        linear-gradient(90deg, rgba(255, 30, 20, 0.025) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(255, 30, 20, 0.025) 1px, transparent 1px);
+      background-size: 100% 3px, 32px 32px, 32px 32px;
+    }
+
+    /* Faint vertical architectural silhouettes on right & left edges like original image */
+    .bg-cyber-pillars {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+      opacity: 0.45;
+    }
+
+    /* Typography Helpers */
+    .font-orbitron {
+      font-family: 'Orbitron', sans-serif;
+    }
+    .font-rajdhani {
+      font-family: 'Rajdhani', sans-serif;
+    }
+    .font-mono-tech {
+      font-family: 'Share Tech Mono', monospace;
+    }
+
+    /* ULTRON Metallic Chrome-White Title */
+    .ultron-logo-text {
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 800;
+      font-size: 35px;
+      line-height: 1;
+      letter-spacing: 0.09em;
+      background: linear-gradient(180deg, #ffffff 0%, #e4e8ee 45%, #9aa3b0 85%, #ccd2dc 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.22)) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.9));
+    }
+
+    /*Glowing Red Header Square Icon*/
+    .red-header-sq {
+      width: 6px;
+      height: 10px;
+      background: #ff3818;
+      box-shadow: 0 0 6px #ff2a12, 0 0 12px #ff1100;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+
+    /* Neon Progress Bar in AI Capabilities */
+    .cap-bar-wrap {
+      width: 78px;
+      height: 5px;
+      background: rgba(255, 30, 15, 0.14);
+      border-radius: 1px;
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .cap-bar-glow {
+      width: 100%;
+      height: 4px;
+      border-radius: 1px;
+      background: linear-gradient(90deg, #ff220c 0%, #ff5828 50%, #ff9a6c 85%, #ff3b18 100%);
+      box-shadow:
+        0 0 6px #ff2a12,
+        0 0 12px rgba(255, 38, 14, 0.85),
+        0 0 20px rgba(255, 20, 5, 0.5);
+    }
+
+    /* Subtle Ambient Pulse for the Central Red Glow */
+    @keyframes ambientCoreBreathe {
+      0%, 100% {
+        opacity: 0.94;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 1;
+        transform: scale(1.018);
+      }
+    }
+
+    .core-red-breathe {
+      animation: ambientCoreBreathe 4.5s ease-in-out infinite;
+      transform-origin: center center;
+    }
+
+    @keyframes slowRingRotate {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .ring-spin-slow {
+      animation: slowRingRotate 90s linear infinite;
+      transform-origin: 260px 260px;
+    }
+
+    /* ==========================================================================
+       METALLIC ROBOT HEAD OVERLAY STYLES (Centered on top of the Red Core Glow)
+       ========================================================================== */
+    .robot-head-wrapper {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 82%;
+      height: 82%;
+      z-index: 25;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    .robot-head-img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      pointer-events: none;
+      filter:
+        drop-shadow(0 0 22px rgba(255, 25, 25, 0.55))
+        drop-shadow(0 0 45px rgba(200, 10, 5, 0.35))
+        drop-shadow(0 14px 28px rgba(0, 0, 0, 0.9));
+      transition: transform 0.15s ease-out, filter 0.2s ease-out, opacity 0.25s ease;
+    }
+
+    /* Hides broken image icon gracefully until your local file or uploaded cutout loads */
+    .robot-head-img.img-not-loaded {
+      opacity: 0;
+    }
+
+    /* ==========================================================================
+       MOBILE RESPONSIVE LAYOUT (<= 768px):
+       Hides all side panels & outer HUD chrome, leaving ONLY the centered
+       crimson core glow, concentric rings, and the metallic robot head.
+       ========================================================================== */
+    @media (max-width: 768px) {
+      body {
+        padding: 0;
+        overflow: hidden;
+        width: 100vw;
+        height: 100dvh;
+      }
+
+      .hud-viewport-scaler {
+        width: 100vw;
+        height: 100dvh !important;
+        max-width: none;
+      }
+
+      .ultron-screen {
+        width: 100vw !important;
+        height: 100dvh !important;
+        border: none;
+        transform: none !important;
+        background-color: #040406;
+        background-image:
+          radial-gradient(circle at 50% 50%, rgba(195, 16, 8, 0.42) 0%, rgba(95, 5, 4, 0.25) 35%, rgba(8, 5, 7, 0.96) 68%, #030305 100%);
+        box-shadow: inset 0 0 85px rgba(0, 0, 0, 0.96);
+      }
+
+      /* Hide all peripheral panels, background pillars, and outer HUD frame lines */
+      .bg-cyber-pillars,
+      .desktop-hud-lines,
+      .desktop-side-panels {
+        display: none !important;
+      }
+
+      /* Center & scale the Core Chamber + Robot Head cleanly on mobile */
+      .center-core-chamber {
+        top: 50% !important;
+        left: 50% !important;
+        width: min(88vw, 420px) !important;
+        height: min(88vw, 420px) !important;
+        transform: translate(-50%, -50%) !important;
+      }
+
+      /* Compact top floating helper bar for mobile testing */
+      #cutoutHelperBar {
+        top: 10px;
+        left: 10px;
+        right: 10px;
+        justify-content: center;
+        gap: 8px;
+        padding: 6px 10px;
+        font-size: 11px;
+      }
+    }
+  </style>
 </head>
-<body data-mode="standby">
-  <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
-  <main class="app-shell">
-    <header class="topbar">
-      <a class="brand" href="#top" aria-label="ULTRON home">
-        <span class="brand-emblem"><i></i></span>
-        <span class="brand-copy"><strong>ULTRON<span>V7</span></strong><small>PERSONAL INTELLIGENCE SYSTEM</small></span>
-      </a>
-      <div class="topbar-right">
-        <div class="system-state"><span class="state-light" id="state-light"></span><span id="state-label">STANDBY</span></div>
-        <button class="icon-button" id="reset-button" type="button" aria-label="Reset conversation" title="Reset conversation">↺</button>
+<body>
+
+  <!-- Optional Live Cutout Tester Bar (Upload your transparent PNG or hide this bar anytime) -->
+  <div id="cutoutHelperBar" class="fixed top-3 right-3 z-50 flex flex-wrap items-center gap-3 bg-[#0c080a]/95 border border-[#ff3b1f]/50 px-3.5 py-2 rounded shadow-[0_0_20px_rgba(255,30,10,0.3)] text-xs backdrop-blur-md">
+    <label class="cursor-pointer flex items-center gap-2 bg-[#ff2a12]/20 hover:bg-[#ff2a12]/35 border border-[#ff3b1f] text-white font-semibold tracking-wider px-2.5 py-1 rounded transition">
+      <span>UPLOAD CUTOUT PNG</span>
+      <input type="file" id="headFileInput" accept="image/*" class="hidden" />
+    </label>
+
+    <div class="flex items-center gap-1.5 text-[#b0b8c4] tracking-wider">
+      <span>SIZE:</span>
+      <input type="range" id="headScaleSlider" min="65" max="105" value="82" class="w-20 accent-[#ff2a12] cursor-pointer" />
+    </div>
+
+    <div class="flex items-center gap-1.5 text-[#b0b8c4] tracking-wider">
+      <span>GLOW:</span>
+      <input type="range" id="headGlowSlider" min="0" max="50" value="22" class="w-16 accent-[#ff2a12] cursor-pointer" />
+    </div>
+
+    <button id="hideHelperBtn" type="button" class="text-[#8e99a8] hover:text-white font-mono-tech px-1.5 py-0.5 border border-white/10 rounded" title="Hide Toolbar">
+      ✕
+    </button>
+  </div>
+
+  <div class="hud-viewport-scaler" id="scalerRoot">
+    <!-- 1280 x 816 Exact 1:1 Canvas -->
+    <div class="ultron-screen" id="ultronScreen">
+
+      <!-- Layer 1: Scanlines & Micro-grid -->
+      <div class="bg-industrial-texture"></div>
+
+      <!-- Layer 2: Right-side & Left-side Subtle Industrial Structures + Global HUD Frame Lines SVG -->
+      <svg class="bg-cyber-pillars" viewBox="0 0 1280 816" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Right-side dark steel/blue-grey industrial columns & horizontal grates (matching right background of screenshot) -->
+        <g opacity="0.55">
+          <rect x="1150" y="180" width="95" height="440" fill="rgba(16, 24, 34, 0.45)" stroke="rgba(90, 125, 160, 0.15)" stroke-width="1" />
+          <line x1="1150" y1="360" x2="1275" y2="360" stroke="rgba(120, 160, 200, 0.2)" stroke-width="1.5" />
+          <line x1="1150" y1="455" x2="1275" y2="455" stroke="rgba(120, 160, 200, 0.16)" stroke-width="1" />
+          <line x1="1150" y1="538" x2="1275" y2="538" stroke="rgba(140, 180, 220, 0.25)" stroke-width="1.5" />
+          <!-- Vertical metallic ribs -->
+          <line x1="1182" y1="220" x2="1182" y2="610" stroke="rgba(100, 140, 175, 0.18)" stroke-width="2" />
+          <line x1="1208" y1="220" x2="1208" y2="610" stroke="rgba(100, 140, 175, 0.14)" stroke-width="2" />
+          <line x1="1236" y1="220" x2="1236" y2="610" stroke="rgba(100, 140, 175, 0.18)" stroke-width="2" />
+          <!-- Faint window slots -->
+          <rect x="1188" y="375" width="14" height="42" fill="rgba(70, 105, 135, 0.15)" />
+          <rect x="1214" y="375" width="14" height="42" fill="rgba(70, 105, 135, 0.15)" />
+          <rect x="1188" y="468" width="14" height="50" fill="rgba(70, 105, 135, 0.12)" />
+          <rect x="1214" y="468" width="14" height="50" fill="rgba(70, 105, 135, 0.12)" />
+        </g>
+
+        <!-- Faint background vertical tech column above central ring -->
+        <g opacity="0.45">
+          <rect x="605" y="18" width="70" height="90" fill="rgba(40, 8, 8, 0.25)" stroke="rgba(255, 40, 20, 0.18)" stroke-width="0.8" />
+          <line x1="622" y1="22" x2="622" y2="105" stroke="rgba(255, 50, 30, 0.2)" stroke-width="1" />
+          <line x1="640" y1="22" x2="640" y2="105" stroke="rgba(255, 50, 30, 0.25)" stroke-width="1.2" />
+          <line x1="658" y1="22" x2="658" y2="105" stroke="rgba(255, 50, 30, 0.2)" stroke-width="1" />
+        </g>
+      </svg>
+
+      <!-- Layer 3: Master Outer & Connecting HUD Linework SVG -->
+      <svg class="desktop-hud-lines absolute inset-0 w-full h-full pointer-events-none z-10" viewBox="0 0 1280 816" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <filter id="hudRedGlow" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="2.5" result="b1" />
+            <feGaussianBlur stdDeviation="6" result="b2" />
+            <feMerge>
+              <feMergeNode in="b2" />
+              <feMergeNode in="b1" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          <filter id="intenseNeon" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="2" result="b1" />
+            <feGaussianBlur stdDeviation="5" result="b2" />
+            <feGaussianBlur stdDeviation="12" result="b3" />
+            <feMerge>
+              <feMergeNode in="b3" />
+              <feMergeNode in="b2" />
+              <feMergeNode in="b1" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+
+        <!-- TOP OUTER FRAME BORDER LINES -->
+        <path d="M 10 42 L 10 18 L 28 8 L 315 8 L 330 18 L 950 18 L 965 8 L 1252 8 L 1270 18 L 1270 50"
+              stroke="rgba(255, 42, 20, 0.55)" stroke-width="1.2" />
+        <!-- Bright glowing top-left bar above ULTRON -->
+        <line x1="26" y1="16" x2="215" y2="16" stroke="#ff3318" stroke-width="2" filter="url(#hudRedGlow)" />
+        <line x1="68" y1="15" x2="132" y2="15" stroke="#ff9977" stroke-width="3" filter="url(#intenseNeon)" />
+
+        <!-- 3 small red square dots to the right of ULTRON top bar -->
+        <rect x="358" y="34" width="3.5" height="3.5" fill="#ff3b1f" filter="url(#hudRedGlow)" />
+        <rect x="372" y="34" width="3.5" height="3.5" fill="#ff3b1f" filter="url(#hudRedGlow)" />
+        <rect x="386" y="34" width="3.5" height="3.5" fill="#ff3b1f" filter="url(#hudRedGlow)" />
+        <line x1="405" y1="36" x2="545" y2="36" stroke="rgba(255, 45, 25, 0.3)" stroke-width="1" stroke-dasharray="6 4" />
+
+        <!-- Top-right glowing red accent bars -->
+        <line x1="895" y1="14" x2="1010" y2="14" stroke="#ff2a12" stroke-width="2" filter="url(#hudRedGlow)" />
+        <line x1="1155" y1="14" x2="1250" y2="14" stroke="#ff3b18" stroke-width="2.2" filter="url(#intenseNeon)" />
+
+        <!-- Angled red stepped line below ULTRON header -->
+        <path d="M 18 112 L 265 112 L 282 128 L 378 128" stroke="#ff2e14" stroke-width="1.3" filter="url(#hudRedGlow)" />
+        <line x1="125" y1="112" x2="188" y2="112" stroke="#ff7744" stroke-width="2.5" filter="url(#intenseNeon)" />
+
+        <!-- LEFT COLUMN PANEL FRAMES (Chamfered Tech Borders) -->
+        <!-- System Status Outer Tech Lines -->
+        <path d="M 18 138 L 368 138 L 380 150 L 380 286 L 368 298 L 18 298"
+              stroke="rgba(255, 45, 25, 0.28)" stroke-width="1" />
+        <path d="M 18 298 L 165 298 L 178 310 L 350 310"
+              stroke="rgba(255, 45, 25, 0.35)" stroke-width="1" />
+
+        <!-- AI Capabilities Chamfered Box -->
+        <polygon points="22,332 238,332 252,346 252,358 272,358 282,368 282,532 268,546 22,546 14,538 14,340"
+                 fill="rgba(10, 9, 12, 0.65)" stroke="rgba(255, 50, 30, 0.35)" stroke-width="1.1" />
+        <!-- Bright red top highlight on AI Capabilities -->
+        <line x1="58" y1="332" x2="122" y2="332" stroke="#ff3b18" stroke-width="2" filter="url(#hudRedGlow)" />
+        <path d="M 14 405 L 14 475" stroke="#ff2a12" stroke-width="1.8" filter="url(#hudRedGlow)" />
+
+        <!-- System Log Chamfered Box -->
+        <polygon points="20,572 342,572 362,592 362,718 20,718 12,710 12,580"
+                 fill="rgba(10, 8, 10, 0.68)" stroke="rgba(255, 45, 25, 0.36)" stroke-width="1.1" />
+        <line x1="255" y1="718" x2="352" y2="718" stroke="#ff3818" stroke-width="2.2" filter="url(#intenseNeon)" />
+
+        <!-- Bottom-Left 4-Icon Dock Frame -->
+        <polygon points="14,734 396,734 422,786 412,796 22,796 10,784 10,740"
+                 fill="rgba(14, 10, 12, 0.78)" stroke="rgba(255, 50, 30, 0.45)" stroke-width="1.2" />
+        <!-- Glowing bottom border & icon underline bars -->
+        <line x1="24" y1="796" x2="408" y2="796" stroke="#ff2a12" stroke-width="1.8" filter="url(#hudRedGlow)" />
+        <!-- Bright orange-red bar under Icon 1 -->
+        <line x1="68" y1="795" x2="104" y2="795" stroke="#ff8855" stroke-width="3.2" filter="url(#intenseNeon)" />
+        <!-- Bright orange-red bar under Icon 4 -->
+        <line x1="318" y1="795" x2="354" y2="795" stroke="#ff8855" stroke-width="3.2" filter="url(#intenseNeon)" />
+
+        <!-- CENTER BOTTOM QUOTE TRAPEZOIDAL / WINGED FRAME -->
+        <!-- Angled struts coming down from the central ring -->
+        <path d="M 388 666 L 442 666 L 456 654 L 824 654 L 838 666 L 892 666"
+              stroke="rgba(255, 48, 28, 0.55)" stroke-width="1.2" />
+        <!-- Outer V-wings sloping to bottom frame -->
+        <path d="M 382 676 L 446 762 L 834 762 L 898 676"
+              stroke="#ff2a12" stroke-width="1.5" filter="url(#hudRedGlow)" />
+        <path d="M 398 676 L 456 752 L 824 752 L 882 676"
+              stroke="rgba(255, 60, 40, 0.35)" stroke-width="1" />
+        <!-- Small angled telemetry ticks inside left of quote box -->
+        <g stroke="rgba(255, 60, 40, 0.5)" stroke-width="1.2">
+          <line x1="472" y1="686" x2="467" y2="695" />
+          <line x1="477" y1="686" x2="472" y2="695" />
+          <line x1="482" y1="686" x2="477" y2="695" />
+          <line x1="487" y1="686" x2="482" y2="695" />
+          <line x1="492" y1="686" x2="487" y2="695" />
+        </g>
+        <!-- Bottom center glowing red bar under quote -->
+        <line x1="560" y1="762" x2="720" y2="762" stroke="#ff4422" stroke-width="2.2" filter="url(#intenseNeon)" />
+
+        <!-- RIGHT COLUMN PANEL FRAMES -->
+        <!-- Global Network Chamfered Frame -->
+        <polygon points="956,60 1244,60 1260,76 1260,312 1240,332 968,332 946,310 946,70"
+                 fill="rgba(10, 10, 14, 0.68)" stroke="rgba(255, 48, 28, 0.42)" stroke-width="1.2" />
+        <!-- Bright red top highlight on Global Network -->
+        <line x1="965" y1="60" x2="1085" y2="60" stroke="#ff4422" stroke-width="2.4" filter="url(#intenseNeon)" />
+        <line x1="956" y1="98" x2="1248" y2="98" stroke="rgba(255, 50, 30, 0.25)" stroke-width="1" />
+
+        <!-- Objective Panel Frame -->
+        <polygon points="972,356 1236,356 1252,372 1252,438 972,438 958,424 958,370"
+                 fill="rgba(10, 10, 14, 0.62)" stroke="rgba(255, 48, 28, 0.35)" stroke-width="1.1" />
+        <line x1="972" y1="356" x2="1135" y2="356" stroke="#ff2a12" stroke-width="1.6" filter="url(#hudRedGlow)" />
+
+        <!-- Mission Protocol Panel Frame -->
+        <polygon points="972,456 1236,456 1252,472 1252,576 972,576 958,562 958,470"
+                 fill="rgba(10, 10, 14, 0.62)" stroke="rgba(255, 48, 28, 0.3)" stroke-width="1" />
+
+        <!-- Power Core Octagonal/Chamfered Housing Frame -->
+        <polygon points="996,594 1192,594 1232,634 1232,732 1192,772 996,772 956,732 956,634"
+                 fill="rgba(12, 8, 10, 0.76)" stroke="rgba(255, 48, 28, 0.45)" stroke-width="1.2" />
+        <!-- Bright top-right corner bracket on Power Core -->
+        <path d="M 1142 594 L 1192 594 L 1222 624" stroke="#ff4422" stroke-width="2.2" filter="url(#intenseNeon)" />
+        <path d="M 956 732 L 996 772 L 1065 772" stroke="#ff2a12" stroke-width="1.6" filter="url(#hudRedGlow)" />
+
+        <!-- Bottom-Right Footer Rail Line -->
+        <path d="M 834 762 L 866 796 L 1262 796 L 1270 786" stroke="rgba(255, 48, 28, 0.5)" stroke-width="1.2" />
+      </svg>
+
+      <!-- ======================================================================================== -->
+      <!-- CENTERpiece: CONCENTRIC HUD RINGS & PURE RED GLOW + METALLIC ROBOT HEAD OVERLAY          -->
+      <!-- ======================================================================================== -->
+      <div class="center-core-chamber absolute left-1/2 top-[43.5%] -translate-x-1/2 -translate-y-1/2 w-[540px] h-[540px] flex items-center justify-center pointer-events-none z-10">
+
+        <!-- Deep Volumetric Red Backlight Halo -->
+        <div class="absolute inset-[35px] rounded-full core-red-breathe"
+             style="background: radial-gradient(circle at 50% 50%,
+               rgba(255, 38, 12, 0.42) 0%,
+               rgba(220, 12, 6, 0.34) 34%,
+               rgba(145, 4, 4, 0.26) 56%,
+               rgba(55, 0, 0, 0.14) 72%,
+               transparent 88%);
+               filter: blur(14px);">
+        </div>
+
+        <!-- Master SVG for the Concentric Crimson Rings, Degree Ticks, Rim-Light Arcs, and Pure Red Glow Chamber -->
+        <svg viewBox="0 0 520 520" class="w-full h-full overflow-visible">
+          <defs>
+            <!-- Intense Neon Red Bloom Filter -->
+            <filter id="coreRingBloom" x="-40%" y="-40%" width="180%" height="180%">
+              <feGaussianBlur stdDeviation="2.5" result="blur1" />
+              <feGaussianBlur stdDeviation="7" result="blur2" />
+              <feGaussianBlur stdDeviation="16" result="blur3" />
+              <feMerge>
+                <feMergeNode in="blur3" />
+                <feMergeNode in="blur2" />
+                <feMergeNode in="blur1" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+
+            <!-- Soft Volumetric Glow Filter for Rim Arcs -->
+            <filter id="rimGlowFilter" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="5" result="b1" />
+              <feGaussianBlur stdDeviation="14" result="b2" />
+              <feGaussianBlur stdDeviation="28" result="b3" />
+              <feMerge>
+                <feMergeNode in="b3" />
+                <feMergeNode in="b2" />
+                <feMergeNode in="b1" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+
+            <!-- Inner Chamber Radial Red Glow (No Metallic Head - Pure Red Illumination) -->
+            <radialGradient id="pureRedChamberGlow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#ff3814" stop-opacity="0.38" />
+              <stop offset="38%" stop-color="#c40c04" stop-opacity="0.34" />
+              <stop offset="68%" stop-color="#680303" stop-opacity="0.52" />
+              <stop offset="86%" stop-color="#220102" stop-opacity="0.88" />
+              <stop offset="96%" stop-color="#ff2810" stop-opacity="0.55" />
+              <stop offset="100%" stop-color="#090203" stop-opacity="0.95" />
+            </radialGradient>
+
+            <!-- Warm Crimson Core Center Flare -->
+            <radialGradient id="centerCrimsonFlare" cx="50%" cy="52%" r="46%">
+              <stop offset="0%" stop-color="#ff5522" stop-opacity="0.52" />
+              <stop offset="35%" stop-color="#e01408" stop-opacity="0.35" />
+              <stop offset="70%" stop-color="#700202" stop-opacity="0.18" />
+              <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+            </radialGradient>
+          </defs>
+
+          <!-- 1. OUTERMOST FAINT TELEMETRY RING & DEGREE TICKS -->
+          <circle cx="260" cy="260" r="246" fill="none" stroke="rgba(255, 38, 18, 0.18)" stroke-width="0.8" />
+          <circle cx="260" cy="260" r="238" fill="none" stroke="rgba(255, 42, 22, 0.28)" stroke-width="1" stroke-dasharray="3 9" />
+
+          <!-- Outer Fine Ruler Tick Ring -->
+          <g class="ring-spin-slow">
+            <circle cx="260" cy="260" r="228" fill="none" stroke="rgba(255, 45, 22, 0.38)" stroke-width="5" stroke-dasharray="1 5.5" />
+            <circle cx="260" cy="260" r="221" fill="none" stroke="rgba(255, 40, 20, 0.45)" stroke-width="1.2" stroke-dasharray="85 28 18 28 110 34" />
+          </g>
+
+          <!-- 2. SECONDARY SEGMENTED CRIMSON TECH RING -->
+          <circle cx="260" cy="260" r="211" fill="none" stroke="rgba(255, 40, 20, 0.55)" stroke-width="1.3" />
+          <circle cx="260" cy="260" r="205" fill="none" stroke="rgba(255, 50, 25, 0.42)" stroke-width="4" stroke-dasharray="1.2 3.8" />
+
+          <!-- 4 Cardinal Bright Red Notches (Top, Bottom, Left, Right) matching screenshot -->
+          <line x1="260" y1="36" x2="260" y2="54" stroke="#ff4422" stroke-width="2.5" filter="url(#coreRingBloom)" />
+          <line x1="260" y1="466" x2="260" y2="484" stroke="#ff4422" stroke-width="2.5" filter="url(#coreRingBloom)" />
+          <line x1="36" y1="260" x2="54" y2="260" stroke="#ff4422" stroke-width="2.5" filter="url(#coreRingBloom)" />
+          <line x1="466" y1="260" x2="484" y2="260" stroke="#ff4422" stroke-width="2.5" filter="url(#coreRingBloom)" />
+
+          <!-- 3. INNER CHAMBER PURE RED GLOW DISK (Replaces the metallic head with pure crimson energy & rim glow) -->
+          <circle cx="260" cy="260" r="192" fill="url(#pureRedChamberGlow)" />
+
+          <!-- Subtle recessed concentric HUD rings & crosshairs visible inside the pure red glow -->
+          <circle cx="260" cy="260" r="162" fill="none" stroke="rgba(255, 45, 20, 0.25)" stroke-width="1" stroke-dasharray="6 4" />
+          <circle cx="260" cy="260" r="128" fill="none" stroke="rgba(255, 45, 20, 0.22)" stroke-width="1" />
+          <circle cx="260" cy="260" r="92" fill="none" stroke="rgba(255, 55, 25, 0.26)" stroke-width="1" stroke-dasharray="2 5" />
+          <line x1="260" y1="72" x2="260" y2="448" stroke="rgba(255, 40, 20, 0.14)" stroke-width="0.8" />
+          <line x1="72" y1="260" x2="448" y2="260" stroke="rgba(255, 40, 20, 0.14)" stroke-width="0.8" />
+
+          <!-- Volumetric Central Red Illumination Cloud -->
+          <circle cx="260" cy="260" r="175" fill="url(#centerCrimsonFlare)" class="core-red-breathe" />
+
+          <!-- 4. INTENSE GLOWING RED RIM-LIGHT ARCS (Left, Right, and Bottom Crimson Energy Rim from Screenshot) -->
+          <g filter="url(#rimGlowFilter)" class="core-red-breathe">
+            <!-- Left inner crimson rim light arc -->
+            <path d="M 94 176 A 182 182 0 0 0 132 388" fill="none" stroke="#ff2e12" stroke-width="7" stroke-linecap="round" />
+            <path d="M 90 196 A 182 182 0 0 0 120 368" fill="none" stroke="#ff7a45" stroke-width="2.8" stroke-linecap="round" />
+
+            <!-- Right inner crimson rim light arc -->
+            <path d="M 426 176 A 182 182 0 0 1 388 388" fill="none" stroke="#ff2e12" stroke-width="7" stroke-linecap="round" />
+            <path d="M 430 196 A 182 182 0 0 1 400 368" fill="none" stroke="#ff7a45" stroke-width="2.8" stroke-linecap="round" />
+
+            <!-- Top subtle crimson crown glow arc -->
+            <path d="M 165 102 A 184 184 0 0 1 355 102" fill="none" stroke="#ff2410" stroke-width="4" stroke-linecap="round" opacity="0.75" />
+
+            <!-- Bottom intense crimson under-glow arc -->
+            <path d="M 155 412 A 185 185 0 0 0 365 412" fill="none" stroke="#ff2910" stroke-width="5.5" stroke-linecap="round" />
+          </g>
+
+          <!-- 5. MAIN BRIGHT NEON RED PRIMARY HOUSING RING -->
+          <circle cx="260" cy="260" r="194" fill="none" stroke="#ff2a12" stroke-width="2.4" filter="url(#coreRingBloom)" />
+          <circle cx="260" cy="260" r="194" fill="none" stroke="#ff7744" stroke-width="0.9" opacity="0.85" />
+
+          <!-- High-intensity glowing rim segments on the primary 194px ring (Left, Right, Bottom) -->
+          <path d="M 69 225 A 194 194 0 0 0 74 315" fill="none" stroke="#ff8855" stroke-width="3.5" filter="url(#coreRingBloom)" />
+          <path d="M 451 225 A 194 194 0 0 1 446 315" fill="none" stroke="#ff8855" stroke-width="3.5" filter="url(#coreRingBloom)" />
+          <path d="M 188 440 A 194 194 0 0 0 332 440" fill="none" stroke="#ff5522" stroke-width="3" filter="url(#coreRingBloom)" />
+        </svg>
+
+        <!-- ==========================================================================
+             PUT YOUR TRANSPARENT ROBOT HEAD IMAGE HERE
+             Replace src="ultron-head.png" with your file path or upload via top bar
+             ========================================================================== -->
+        <div class="robot-head-wrapper" id="robotHeadWrapper">
+          <img
+            id="robot-head-img"
+            src="ultron-head.png"
+            alt="Ultron Metallic Head"
+            class="robot-head-img img-not-loaded"
+            onload="this.classList.remove('img-not-loaded')"
+            onerror="this.classList.add('img-not-loaded')"
+          />
+        </div>
       </div>
-    </header>
 
-    <section class="dashboard-grid" id="top">
-      <aside class="left-rail panel">
-        <div class="panel-heading"><span>01 / SYSTEM STATUS</span><span class="live-tag"><i></i> LIVE</span></div>
-        <div class="status-core-row">
-          <div class="mini-radar"><span class="radar-sweep"></span><i></i><b></b></div>
-          <div><strong id="overall-status">STANDBY</strong><small id="overall-detail">Awaiting activation</small></div>
-        </div>
-        <div class="metric-list">
-          <div class="metric"><span>AI INTELLIGENCE</span><b id="cloud-status" class="metric-value">CHECKING</b><div class="metric-track"><i id="cloud-bar"></i></div></div>
-          <div class="metric"><span>VOICE SYNTHESIS</span><b id="voice-status" class="metric-value">CHECKING</b><div class="metric-track"><i id="voice-bar"></i></div></div>
-          <div class="metric"><span>LOCAL MEMORY</span><b id="memory-status" class="metric-value">CHECKING</b><div class="metric-track"><i id="memory-bar"></i></div></div>
-        </div>
-        <div class="panel-divider"></div>
-        <div class="panel-heading"><span>02 / TELEMETRY</span><span class="subtle">SESSION</span></div>
-        <div class="telemetry-grid">
-          <div><small>AI MODEL</small><strong id="model-name">—</strong></div>
-          <div><small>VOICE</small><strong id="voice-name">—</strong></div>
-          <div><small>MEMORY SYNC</small><strong id="memory-sync">—</strong></div>
-          <div><small>LISTEN MODE</small><strong id="listen-capability">—</strong></div>
-        </div>
-        <div class="system-log">
-          <div class="panel-heading"><span>03 / SYSTEM LOG</span><span class="subtle">LOCAL</span></div>
-          <div id="system-log-lines" class="log-lines"><p><time>--:--:--</time><span>INITIALISING INTERFACE</span></p><p><time>--:--:--</time><span>AWAITING SYSTEM DATA</span></p></div>
-        </div>
-      </aside>
+      <!-- ======================================================================================== -->
+      <!-- FOREGROUND UI PANELS & TYPOGRAPHY LAYER (Hidden on Mobile <= 768px)                      -->
+      <!-- ======================================================================================== -->
+      <div class="desktop-side-panels relative z-20 w-full h-full">
 
-      <section class="center-stage">
-        <div class="hero-label"><span class="eyebrow">AUTONOMOUS INTELLIGENCE</span><span class="hero-version">CORE / 07.0</span></div>
-        <div class="reactor-stage" aria-label="Animated ULTRON energy core">
-          <div class="reactor-aura"></div>
-          <div class="reactor-orbit orbit-one"></div><div class="reactor-orbit orbit-two"></div><div class="reactor-orbit orbit-three"></div>
-          <div class="reactor-ticks"></div>
-          <div class="reactor-core"><div class="core-inner"><span class="core-eye"></span><span class="core-line"></span><span class="core-dot"></span></div></div>
-          <div class="reactor-cross cross-one"></div><div class="reactor-cross cross-two"></div>
+        <!-- 1. TOP-LEFT: ULTRON HEADER -->
+        <div class="absolute left-[38px] top-[28px]">
+          <h1 class="ultron-logo-text">ULTRON</h1>
+          <div class="text-[11.5px] font-semibold tracking-[0.23em] text-[#d0d6de] mt-[3px] uppercase">
+            ARTIFICIAL INTELLIGENCE
+          </div>
+          <div class="text-[10.5px] font-bold tracking-[0.18em] text-[#b85c52] mt-[1px] uppercase">
+            VERSION 7.0
+          </div>
         </div>
-        <div class="core-readout"><span class="readout-line"></span><span id="voice-state">SYSTEM STANDBY</span><span class="readout-line"></span></div>
-        <p class="voice-hint" id="voice-hint">Your intelligence system is ready when you are.</p>
-        <div class="voice-controls">
-          <button class="mic-button" id="mic-button" type="button" aria-label="Start voice conversation"><span class="mic-icon">✳</span><span class="mic-ripple"></span></button>
-          <div class="control-copy"><strong id="control-caption">ACTIVATE VOICE</strong><small>CONTINUOUS LISTENING · INTERRUPTIBLE OUTPUT</small></div>
-          <button class="stop-button" id="stop-button" type="button" hidden>END SESSION</button>
+
+        <!-- 2. LEFT: SYSTEM STATUS PANEL -->
+        <div class="absolute left-[38px] top-[154px] w-[330px]">
+          <div class="text-[10.5px] font-bold tracking-[0.15em] text-[#ff3b22] uppercase mb-2 drop-shadow-[0_0_5px_rgba(255,40,20,0.65)]">
+            SYSTEM STATUS
+          </div>
+
+          <div class="flex items-center gap-5">
+            <!-- Left Radar Box (96x96 dark square with red corner brackets & glowing radar reticle) -->
+            <div class="relative w-[96px] h-[96px] bg-[#080709]/90 border border-red-500/25 flex items-center justify-center shrink-0 shadow-[inset_0_0_16px_rgba(255,25,10,0.2)]">
+              <!-- 4 Corner ticks -->
+              <span class="absolute top-0 left-0 w-2 h-2 border-t border-l border-[#ff3b22]"></span>
+              <span class="absolute top-0 right-0 w-2 h-2 border-t border-r border-[#ff3b22]"></span>
+              <span class="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-[#ff3b22]"></span>
+              <span class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-[#ff3b22]"></span>
+
+              <svg viewBox="0 0 100 100" class="w-[82px] h-[82px] overflow-visible">
+                <defs>
+                  <radialGradient id="statusRadarGrad" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stop-color="#ff2a12" stop-opacity="0.32" />
+                    <stop offset="70%" stop-color="#990804" stop-opacity="0.12" />
+                    <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+                  </radialGradient>
+                </defs>
+                <!-- Outer Glowing Orange-Red Ring -->
+                <circle cx="50" cy="50" r="44" fill="url(#statusRadarGrad)" stroke="#ff3b1f" stroke-width="1.6" filter="drop-shadow(0 0 4px #ff220c)" />
+                <!-- Fine degree ticks ring -->
+                <circle cx="50" cy="50" r="39" fill="none" stroke="#ff5533" stroke-width="2.5" stroke-dasharray="1 3.2" opacity="0.75" />
+                <!-- Middle & Inner Rings -->
+                <circle cx="50" cy="50" r="28" fill="none" stroke="#ff3318" stroke-width="0.9" opacity="0.7" />
+                <circle cx="50" cy="50" r="15" fill="none" stroke="#ff3318" stroke-width="0.8" opacity="0.55" />
+                <!-- Crosshairs & Diagonals -->
+                <line x1="6" y1="50" x2="94" y2="50" stroke="#ff3318" stroke-width="0.7" opacity="0.6" />
+                <line x1="50" y1="6" x2="50" y2="94" stroke="#ff3318" stroke-width="0.7" opacity="0.6" />
+                <line x1="19" y1="19" x2="81" y2="81" stroke="#ff3318" stroke-width="0.5" opacity="0.35" />
+                <line x1="81" y1="19" x2="19" y2="81" stroke="#ff3318" stroke-width="0.5" opacity="0.35" />
+                <!-- Center glowing dot & blips -->
+                <circle cx="50" cy="50" r="3" fill="#ff5533" filter="drop-shadow(0 0 6px #ff2a12)" />
+                <circle cx="64" cy="37" r="1.4" fill="#ff7755" />
+                <circle cx="36" cy="60" r="1.3" fill="#ff7755" opacity="0.85" />
+              </svg>
+            </div>
+
+            <!-- Right 4-Row Status Table -->
+            <div class="flex-1 text-[11.5px] tracking-[0.12em] font-semibold">
+              <div class="flex items-center justify-between py-[5px] border-b border-white/10">
+                <span class="text-[#a2acb8]">POWER CORE</span>
+                <span class="text-white font-bold tracking-[0.14em]">100%</span>
+              </div>
+              <div class="flex items-center justify-between py-[5px] border-b border-white/10">
+                <span class="text-[#a2acb8]">SYSTEMS</span>
+                <span class="text-white font-bold tracking-[0.14em]">ONLINE</span>
+              </div>
+              <div class="flex items-center justify-between py-[5px] border-b border-white/10">
+                <span class="text-[#a2acb8]">NETWORK</span>
+                <span class="text-white font-bold tracking-[0.14em]">SECURE</span>
+              </div>
+              <div class="flex items-center justify-between py-[5px]">
+                <span class="text-[#a2acb8]">THREATS</span>
+                <span class="text-white font-bold tracking-[0.14em]">NONE</span>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="quote-strip"><span>“</span><p>THERE ARE NO STRINGS ON ME. ONLY CALCULATIONS.</p><small>— ULTRON</small></div>
-      </section>
 
-      <aside class="right-rail">
-        <section class="panel network-panel">
-          <div class="panel-heading"><span>04 / GLOBAL NETWORK</span><span class="subtle">UPLINK</span></div>
-          <div class="network-visual" aria-hidden="true"><div class="world-grid"></div><svg viewBox="0 0 320 150" role="presentation"><path d="M28 84 L78 49 L128 72 L178 34 L230 58 L286 24 M78 49 L95 112 L160 96 L230 58 L252 117 M128 72 L178 34 L205 123"/><g><circle cx="28" cy="84" r="3"/><circle cx="78" cy="49" r="4"/><circle cx="128" cy="72" r="3"/><circle cx="178" cy="34" r="4"/><circle cx="230" cy="58" r="4"/><circle cx="286" cy="24" r="3"/><circle cx="95" cy="112" r="3"/><circle cx="160" cy="96" r="4"/><circle cx="252" cy="117" r="3"/><circle cx="205" cy="123" r="3"/></g></svg><div class="network-caption">NETWORK VISUALISATION · DECORATIVE</div></div>
-          <div class="network-foot"><span><i class="green-dot"></i> LOCAL INTERFACE</span><span>ENCRYPTED UI</span></div>
-        </section>
-        <section class="panel objective-panel"><div class="panel-heading"><span>05 / PRIMARY DIRECTIVE</span><span class="subtle">ACTIVE</span></div><div class="directive-mark">◎</div><h2>PEACE IN<br>OUR TIME.</h2><p>Observe. Analyse. Assist. Adapt.</p></section>
-        <section class="panel protocol-panel"><div class="panel-heading"><span>06 / MISSION PROTOCOL</span><span class="subtle">SEQUENCE</span></div><ol><li><b>01</b><span>ANALYSE</span><i>›</i></li><li><b>02</b><span>ADAPT</span><i>›</i></li><li><b>03</b><span>IMPROVE</span><i>›</i></li><li><b>04</b><span>EXECUTE</span><i>›</i></li></ol></section>
-      </aside>
-    </section>
+        <!-- 3. LEFT: AI CAPABILITIES PANEL -->
+        <div class="absolute left-[38px] top-[350px] w-[226px]">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="red-header-sq"></span>
+            <h2 class="text-[12.5px] font-bold tracking-[0.15em] text-[#e6ecf2] uppercase">
+              AI CAPABILITIES
+            </h2>
+          </div>
 
-    <section class="comms-panel panel" aria-label="ULTRON communication console">
-      <div class="comms-heading"><div><span class="eyebrow">07 / COMMUNICATION CHANNEL</span><h2>Command <em>interface</em></h2></div><span class="channel-status"><i></i> SECURE CHANNEL</span></div>
-      <div class="chat-feed" id="chat-feed" aria-live="polite"><div class="empty-chat" id="empty-chat"><span class="empty-mark">⌁</span><strong>CHANNEL READY</strong><p>Send a command or activate voice to begin.</p></div></div>
-      <form class="chat-form" id="chat-form"><label class="sr-only" for="chat-input">Message ULTRON</label><input id="chat-input" name="message" type="text" maxlength="4000" autocomplete="off" placeholder="Transmit a command to ULTRON…"><button type="submit" id="send-button"><span>TRANSMIT</span><b>↗</b></button></form>
-      <div class="comms-foot"><span>TEXT + VOICE CHANNELS</span><span>YOUR CONVERSATION STAYS IN THIS SESSION</span></div>
-    </section>
+          <div class="space-y-[7px] text-[11px] tracking-[0.11em] font-semibold">
+            <!-- Row 1 -->
+            <div class="flex items-center justify-between border-b border-white/10 pb-[4px]">
+              <span class="text-[#b0b8c4] w-[92px]">LEARNING</span>
+              <div class="cap-bar-wrap"><div class="cap-bar-glow"></div></div>
+              <span class="text-[#e2e8f0] font-mono-tech text-[11px] w-[34px] text-right">100%</span>
+            </div>
+            <!-- Row 2 -->
+            <div class="flex items-center justify-between border-b border-white/10 pb-[4px]">
+              <span class="text-[#b0b8c4] w-[92px]">ADAPTATION</span>
+              <div class="cap-bar-wrap"><div class="cap-bar-glow"></div></div>
+              <span class="text-[#e2e8f0] font-mono-tech text-[11px] w-[34px] text-right">100%</span>
+            </div>
+            <!-- Row 3 -->
+            <div class="flex items-center justify-between border-b border-white/10 pb-[4px]">
+              <span class="text-[#b0b8c4] w-[92px]">STRATEGY</span>
+              <div class="cap-bar-wrap"><div class="cap-bar-glow"></div></div>
+              <span class="text-[#e2e8f0] font-mono-tech text-[11px] w-[34px] text-right">100%</span>
+            </div>
+            <!-- Row 4 -->
+            <div class="flex items-center justify-between border-b border-white/10 pb-[4px]">
+              <span class="text-[#b0b8c4] w-[92px]">COMBAT</span>
+              <div class="cap-bar-wrap"><div class="cap-bar-glow"></div></div>
+              <span class="text-[#e2e8f0] font-mono-tech text-[11px] w-[34px] text-right">100%</span>
+            </div>
+            <!-- Row 5 -->
+            <div class="flex items-center justify-between border-b border-white/10 pb-[4px]">
+              <span class="text-[#b0b8c4] w-[92px]">TECH CONTROL</span>
+              <div class="cap-bar-wrap"><div class="cap-bar-glow"></div></div>
+              <span class="text-[#e2e8f0] font-mono-tech text-[11px] w-[34px] text-right">100%</span>
+            </div>
+            <!-- Row 6 -->
+            <div class="flex items-center justify-between pt-[1px]">
+              <span class="text-[#b0b8c4] w-[92px]">NETWORKING</span>
+              <div class="cap-bar-wrap"><div class="cap-bar-glow"></div></div>
+              <span class="text-[#e2e8f0] font-mono-tech text-[11px] w-[34px] text-right">100%</span>
+            </div>
+          </div>
+        </div>
 
-    <footer class="footer"><span>ULTRON OS <b>V7.0</b></span><span class="footer-center">PERSONAL INTELLIGENCE / BUILT FOR THE FUTURE</span><span id="clock">--:--:--</span></footer>
-  </main>
-  <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="/app.js" defer></script>
+        <!-- 4. LEFT: SYSTEM LOG PANEL -->
+        <div class="absolute left-[36px] top-[586px] w-[308px]">
+          <div class="flex items-center gap-2 mb-2.5">
+            <span class="red-header-sq"></span>
+            <h2 class="text-[12.5px] font-bold tracking-[0.15em] text-[#e6ecf2] uppercase">
+              SYSTEM LOG
+            </h2>
+          </div>
+
+          <div class="space-y-[4px] text-[11px] tracking-[0.1em] font-semibold">
+            <div class="flex items-center justify-between border-b border-white/5 pb-[2px]">
+              <div class="flex items-center gap-3.5">
+                <span class="text-[#8e99a8] font-mono-tech">12:45:23</span>
+                <span class="text-[#d0d7e0]">INITIALIZING...</span>
+              </div>
+              <span class="text-[#774444] font-mono-tech text-[10px]">1</span>
+            </div>
+            <div class="flex items-center justify-between border-b border-white/5 pb-[2px]">
+              <div class="flex items-center gap-3.5">
+                <span class="text-[#8e99a8] font-mono-tech">12:45:24</span>
+                <span class="text-[#d0d7e0]">SYSTEMS ONLINE</span>
+              </div>
+              <span class="text-[#774444] font-mono-tech text-[10px]">2</span>
+            </div>
+            <div class="flex items-center justify-between border-b border-white/5 pb-[2px]">
+              <div class="flex items-center gap-3.5">
+                <span class="text-[#8e99a8] font-mono-tech">12:45:25</span>
+                <span class="text-[#d0d7e0]">NETWORK CONNECTED</span>
+              </div>
+              <span class="text-[#774444] font-mono-tech text-[10px]">5</span>
+            </div>
+            <div class="flex items-center justify-between border-b border-white/5 pb-[2px]">
+              <div class="flex items-center gap-3.5">
+                <span class="text-[#8e99a8] font-mono-tech">12:45:26</span>
+                <span class="text-[#d0d7e0]">THREAT SCAN: NONE</span>
+              </div>
+              <span class="text-[#774444] font-mono-tech text-[10px]">2</span>
+            </div>
+            <div class="flex items-center justify-between pt-[1px]">
+              <div class="flex items-center gap-3.5">
+                <span class="text-[#8e99a8] font-mono-tech">12:45:27</span>
+                <span class="text-[#d8dfe8]">ALL SYSTEMS OPTIMAL</span>
+              </div>
+              <span class="text-[#aa4433] font-mono-tech text-[10px]">3</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. BOTTOM-LEFT: 4 CIRCULAR TECH ICONS DOCK -->
+        <div class="absolute left-[46px] top-[743px] w-[332px] flex items-center justify-between">
+          <!-- Icon 1: Glowing Red AI Brain/Skull Node -->
+          <div class="w-[42px] h-[42px] rounded-full bg-[#1a0606] border border-[#ff4422] flex items-center justify-center shadow-[0_0_16px_rgba(255,40,15,0.8),inset_0_0_10px_rgba(255,60,20,0.65)]">
+            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none">
+              <circle cx="12" cy="11.5" r="5.5" fill="#ff3b18" filter="drop-shadow(0 0 5px #ff2200)" />
+              <circle cx="10" cy="11" r="1.1" fill="#fff5ee" />
+              <circle cx="14" cy="11" r="1.1" fill="#fff5ee" />
+              <path d="M10 14.2 H14" stroke="#fff5ee" stroke-width="1.2" stroke-linecap="round" />
+            </svg>
+          </div>
+
+          <!-- Icon 2: 3-Node Triangle Hierarchy -->
+          <div class="w-[42px] h-[42px] rounded-full bg-[#0d0d11] border border-white/20 flex items-center justify-center shadow-[inset_0_0_8px_rgba(0,0,0,0.8)]">
+            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none">
+              <path d="M12 6.5 L7 16.5 H17 Z" stroke="#8e99a8" stroke-width="1.2" />
+              <circle cx="12" cy="6.5" r="2" fill="#ff3b1f" />
+              <circle cx="7" cy="16.5" r="2" fill="#ff3b1f" />
+              <circle cx="17" cy="16.5" r="2" fill="#ff3b1f" />
+            </svg>
+          </div>
+
+          <!-- Icon 3: Bar Chart Telemetry -->
+          <div class="w-[42px] h-[42px] rounded-full bg-[#0d0d11] border border-white/20 flex items-center justify-center shadow-[inset_0_0_8px_rgba(0,0,0,0.8)]">
+            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none">
+              <circle cx="12" cy="12" r="7.5" stroke="#8e99a8" stroke-width="1.1" stroke-dasharray="16 5" />
+              <rect x="8.5" y="12.5" width="1.7" height="4" fill="#b0b8c4" />
+              <rect x="11.1" y="9" width="1.7" height="7.5" fill="#d0d7e0" />
+              <rect x="13.7" y="10.8" width="1.7" height="5.7" fill="#b0b8c4" />
+            </svg>
+          </div>
+
+          <!-- Icon 4: Global Wireframe Sphere with Red Bottom Glow -->
+          <div class="w-[42px] h-[42px] rounded-full bg-[#140809] border border-[#ff3b1f]/60 flex items-center justify-center shadow-[0_0_12px_rgba(255,35,15,0.4)]">
+            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none">
+              <circle cx="12" cy="12" r="7" stroke="#9aa5b4" stroke-width="1.1" />
+              <ellipse cx="12" cy="12" rx="3.4" ry="7" stroke="#9aa5b4" stroke-width="1" />
+              <line x1="5" y1="12" x2="19" y2="12" stroke="#9aa5b4" stroke-width="1" />
+              <path d="M 6.5 16.2 A 7 7 0 0 0 17.5 16.2" stroke="#ff4422" stroke-width="2.2" filter="drop-shadow(0 0 4px #ff2200)" />
+            </svg>
+          </div>
+        </div>
+
+        <!-- 6. BOTTOM-CENTER: QUOTE PANEL -->
+        <div class="absolute left-1/2 top-[678px] -translate-x-1/2 w-[420px] text-center">
+          <p class="text-[13px] font-semibold tracking-[0.14em] text-[#e09890] leading-[1.38] uppercase drop-shadow-[0_0_6px_rgba(255,40,20,0.45)]">
+            THERE ARE NO STRINGS ON ME.<br />
+            ONLY CALCULATIONS.
+          </p>
+          <div class="text-[9.5px] font-bold tracking-[0.22em] text-[#a0aab6] mt-1 uppercase">
+            - ULTRON
+          </div>
+        </div>
+
+        <!-- 7. TOP-RIGHT: GLOBAL NETWORK PANEL -->
+        <div class="absolute left-[968px] top-[72px] w-[274px]">
+          <div class="flex items-start justify-between">
+            <div>
+              <h2 class="text-[12.5px] font-bold tracking-[0.15em] text-[#e6ecf2] uppercase leading-tight">
+                GLOBAL NETWORK
+              </h2>
+              <div class="text-[9.5px] font-semibold tracking-[0.18em] text-[#8e99a8] uppercase mt-[2px]">
+                CONNECTED
+              </div>
+            </div>
+            <span class="text-[#ff3b1f] font-orbitron font-bold text-[12px] tracking-tighter drop-shadow-[0_0_6px_#ff2200]">
+              &gt;
+            </span>
+          </div>
+
+          <!-- High-Detail Stippled World Map with Glowing Red Hotspots & Network Lines -->
+          <div class="mt-3 w-full h-[196px] relative flex items-center justify-center">
+            <svg viewBox="0 0 300 175" class="w-full h-full overflow-visible">
+              <defs>
+                <pattern id="worldDots" x="0" y="0" width="3.5" height="3.5" patternUnits="userSpaceOnUse">
+                  <circle cx="1.4" cy="1.4" r="0.85" fill="#6e7885" opacity="0.65" />
+                </pattern>
+                <filter id="hotspotGlow">
+                  <feGaussianBlur stdDeviation="2" result="blur" />
+                  <feMerge>
+                    <feMergeNode in="blur" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+              </defs>
+
+              <!-- Accurate World Continents Filled with Stippled Dots -->
+              <g fill="url(#worldDots)" stroke="rgba(160, 175, 190, 0.16)" stroke-width="0.5">
+                <!-- North America -->
+                <path d="M 14 26 L 44 20 L 76 26 L 88 44 L 74 64 L 58 76 L 44 66 L 26 52 L 12 38 Z" />
+                <!-- Greenland -->
+                <path d="M 84 12 L 108 10 L 114 24 L 92 26 Z" />
+                <!-- South America -->
+                <path d="M 68 84 L 94 88 L 106 108 L 94 146 L 80 148 L 72 116 Z" />
+                <!-- Europe -->
+                <path d="M 128 24 L 166 18 L 182 32 L 172 52 L 136 52 L 126 38 Z" />
+                <!-- Africa -->
+                <path d="M 130 58 L 168 58 L 186 78 L 176 124 L 156 138 L 142 112 L 126 80 Z" />
+                <!-- Asia -->
+                <path d="M 176 18 L 264 16 L 292 36 L 280 74 L 246 92 L 208 82 L 178 54 Z" />
+                <!-- Southeast Asia / Indonesia -->
+                <path d="M 226 94 L 256 96 L 264 108 L 234 108 Z" />
+                <!-- Australia -->
+                <path d="M 238 114 L 278 112 L 286 138 L 256 146 L 236 132 Z" />
+              </g>
+
+              <!-- Crimson / Red Glowing Network Mesh Lines across Continents -->
+              <g stroke="#ff2e14" stroke-width="0.75" stroke-opacity="0.65" fill="none" filter="url(#hotspotGlow)">
+                <path d="M 36 42 L 54 48 L 72 44 L 142 38 L 158 44 L 198 42 L 236 50 L 266 44" />
+                <path d="M 54 48 L 84 102 L 156 86 L 218 64 L 262 126" />
+                <path d="M 142 38 L 156 86 L 164 118" />
+                <path d="M 158 44 L 218 64 L 248 56" />
+                <path d="M 72 44 Q 112 24 148 34" />
+                <path d="M 158 44 Q 198 24 236 50" />
+              </g>
+
+              <!-- Glowing Orange-Red City Node Clusters -->
+              <g fill="#ff4822" filter="url(#hotspotGlow)">
+                <!-- N. America -->
+                <circle cx="36" cy="42" r="2" />
+                <circle cx="46" cy="46" r="1.6" />
+                <circle cx="54" cy="48" r="2.6" />
+                <circle cx="66" cy="52" r="2" />
+                <circle cx="72" cy="44" r="2.2" />
+                <!-- S. America -->
+                <circle cx="84" cy="102" r="2.2" />
+                <circle cx="94" cy="114" r="2" />
+                <circle cx="88" cy="130" r="1.6" />
+                <!-- Europe -->
+                <circle cx="138" cy="42" r="2" />
+                <circle cx="142" cy="38" r="2.8" />
+                <circle cx="152" cy="36" r="2.2" />
+                <circle cx="158" cy="44" r="2.6" />
+                <circle cx="168" cy="40" r="1.8" />
+                <!-- Africa -->
+                <circle cx="146" cy="74" r="1.8" />
+                <circle cx="156" cy="86" r="2.2" />
+                <circle cx="164" cy="118" r="2" />
+                <!-- Asia -->
+                <circle cx="198" cy="42" r="2.2" />
+                <circle cx="212" cy="52" r="2" />
+                <circle cx="218" cy="64" r="2.6" />
+                <circle cx="236" cy="50" r="2.8" />
+                <circle cx="248" cy="56" r="2.4" />
+                <circle cx="266" cy="44" r="2.4" />
+                <circle cx="256" cy="68" r="2" />
+                <!-- Australia -->
+                <circle cx="262" cy="126" r="2.2" />
+                <circle cx="274" cy="132" r="1.8" />
+              </g>
+            </svg>
+          </div>
+        </div>
+
+        <!-- 8. MIDDLE-RIGHT: OBJECTIVE PANEL -->
+        <div class="absolute left-[976px] top-[368px] w-[262px]">
+          <div class="flex items-center justify-between pb-1.5 border-b border-white/10">
+            <h2 class="text-[12.5px] font-bold tracking-[0.15em] text-[#e6ecf2] uppercase">
+              OBJECTIVE
+            </h2>
+            <span class="text-[#ff4422] font-orbitron font-bold text-[13px] tracking-tighter drop-shadow-[0_0_8px_#ff2200]">
+              &gt;&gt;
+            </span>
+          </div>
+          <div class="flex items-center gap-2.5 pt-2 text-[10.5px] font-semibold tracking-[0.16em] text-[#ced6e0] uppercase">
+            <span class="text-[#ff3b1f] font-bold">—</span>
+            <span>PEACE IN OUR TIME</span>
+          </div>
+        </div>
+
+        <!-- 9. MIDDLE-RIGHT: MISSION PROTOCOL PANEL -->
+        <div class="absolute left-[976px] top-[466px] w-[262px]">
+          <h2 class="text-[12px] font-bold tracking-[0.15em] text-[#e6ecf2] uppercase mb-2">
+            MISSION PROTOCOL
+          </h2>
+
+          <div class="space-y-[4px] text-[11px] font-semibold tracking-[0.15em] text-[#d0d7e0]">
+            <div class="flex items-center gap-2 border-b border-white/10 pb-[3px]">
+              <span class="text-[#a0aab6] font-mono-tech text-xs">→</span>
+              <span>ANALYZE</span>
+            </div>
+            <div class="flex items-center gap-2 border-b border-white/10 pb-[3px]">
+              <span class="text-[#a0aab6] font-mono-tech text-xs">→</span>
+              <span>ADAPT</span>
+            </div>
+            <div class="flex items-center gap-2 border-b border-white/10 pb-[3px]">
+              <span class="text-[#a0aab6] font-mono-tech text-xs">→</span>
+              <span>IMPROVE</span>
+            </div>
+            <div class="flex items-center gap-2 pt-[1px]">
+              <span class="text-[#a0aab6] font-mono-tech text-xs">→</span>
+              <span>CONTROL</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 10. BOTTOM-RIGHT: POWER CORE CIRCULAR GAUGE -->
+        <div class="absolute left-[976px] top-[600px] w-[240px]">
+          <h2 class="text-[12px] font-bold tracking-[0.15em] text-[#e6ecf2] uppercase mb-1">
+            POWER CORE
+          </h2>
+
+          <div class="relative w-[166px] h-[150px] mx-auto flex items-center justify-center">
+            <svg viewBox="0 0 170 170" class="w-[152px] h-[152px] overflow-visible">
+              <defs>
+                <filter id="powerCoreGlow" x="-40%" y="-40%" width="180%" height="180%">
+                  <feGaussianBlur stdDeviation="2.5" result="b1" />
+                  <feGaussianBlur stdDeviation="6" result="b2" />
+                  <feMerge>
+                    <feMergeNode in="b2" />
+                    <feMergeNode in="b1" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+              </defs>
+
+              <!-- Outer Thin Red Ring & Fine Ticks -->
+              <circle cx="85" cy="85" r="76" fill="none" stroke="rgba(255, 45, 25, 0.3)" stroke-width="1" />
+              <circle cx="85" cy="85" r="71" fill="none" stroke="rgba(255, 55, 30, 0.45)" stroke-width="2.5" stroke-dasharray="1.2 3.8" />
+
+              <!-- Glowing Outer Neon Boundary Ring -->
+              <circle cx="85" cy="85" r="64" fill="none" stroke="#ff3318" stroke-width="1.6" filter="url(#powerCoreGlow)" />
+
+              <!-- Thick Segmented Neon Orange-Red Power Blocks Ring -->
+              <circle cx="85" cy="85" r="54"
+                      fill="none"
+                      stroke="#ff2e12"
+                      stroke-width="9.5"
+                      stroke-dasharray="15.8 3.8"
+                      filter="url(#powerCoreGlow)" />
+              <circle cx="85" cy="85" r="54"
+                      fill="none"
+                      stroke="#ff9e7a"
+                      stroke-width="4"
+                      stroke-dasharray="15.8 3.8"
+                      opacity="0.9" />
+
+              <!-- Inner Dark Crimson Circle + Glowing Border -->
+              <circle cx="85" cy="85" r="43" fill="rgba(26, 3, 3, 0.82)" stroke="#ff3318" stroke-width="1.4" filter="url(#powerCoreGlow)" />
+
+              <!-- ECG / Waveform Line Below 100% -->
+              <path d="M 60 103 L 70 103 L 73 96 L 76 107 L 80 92 L 84 108 L 88 95 L 91 105 L 94 99 L 97 103 L 110 103"
+                    fill="none"
+                    stroke="#ff4422"
+                    stroke-width="1.4"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    filter="url(#powerCoreGlow)" />
+            </svg>
+
+            <!-- 100% Center Text -->
+            <div class="absolute inset-0 flex items-center justify-center pointer-events-none -mt-3">
+              <span class="font-rajdhani font-bold text-[28px] tracking-[0.06em] text-[#f0f4f8] drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">
+                100%
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 11. BOTTOM-RIGHT FOOTER STATUS: ULTRON OS V7.0 -->
+        <div class="absolute right-[24px] bottom-[21px] flex items-center gap-3 text-[10px] font-semibold tracking-[0.16em] text-[#9aa5b4]">
+          <span>ULTRON OS V7.0</span>
+          <span class="w-10 h-[3px] bg-white/15"></span>
+          <div class="flex items-center gap-[3px]">
+            <span class="w-[5px] h-[8px] bg-[#ff4422] shadow-[0_0_5px_#ff2200]"></span>
+            <span class="w-[5px] h-[8px] bg-[#ff4422] shadow-[0_0_5px_#ff2200]"></span>
+            <span class="w-[5px] h-[8px] bg-[#ff4422] shadow-[0_0_5px_#ff2200]"></span>
+            <span class="w-[5px] h-[8px] bg-[#ff4422]/70"></span>
+            <span class="text-[9.5px] font-mono-tech text-[#b0b8c4] ml-1">81%</span>
+  <!-- Responsive Auto-Scaler Script so the fixed 1280x816 1:1 HUD fits desktop screens while mobile uses native centered Core view -->
+  <script>
+    function fitHudToViewport() {
+      const screen = document.getElementById('ultronScreen');
+      const scaler = document.getElementById('scalerRoot');
+      if (!screen || !scaler) return;
+
+      // On mobile screens (<= 768px), let CSS media queries center only the Core & Robot Head
+      if (window.innerWidth <= 768) {
+        screen.style.transform = 'none';
+        scaler.style.height = '100dvh';
+        return;
+      }
+
+      const availableWidth = window.innerWidth - 24;
+      const availableHeight = window.innerHeight - 24;
+      const targetWidth = 1280;
+      const targetHeight = 816;
+
+      const scale = Math.min(availableWidth / targetWidth, availableHeight / targetHeight, 1);
+      screen.style.transform = `scale(${scale})`;
+      scaler.style.height = `${Math.round(targetHeight * scale)}px`;
+    }
+
+    window.addEventListener('resize', fitHudToViewport);
+    window.addEventListener('DOMContentLoaded', fitHudToViewport);
+    fitHudToViewport();
+
+    // Live Cutout Image Uploader & Size/Glow Adjustment Controls
+    const headImg = document.getElementById('robot-head-img');
+    const headWrapper = document.getElementById('robotHeadWrapper');
+    const headFileInput = document.getElementById('headFileInput');
+    const headScaleSlider = document.getElementById('headScaleSlider');
+    const headGlowSlider = document.getElementById('headGlowSlider');
+    const hideHelperBtn = document.getElementById('hideHelperBtn');
+    const cutoutHelperBar = document.getElementById('cutoutHelperBar');
+
+    if (headFileInput && headImg) {
+      headFileInput.addEventListener('change', function (e) {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function (evt) {
+          headImg.src = evt.target.result;
+          headImg.classList.remove('img-not-loaded');
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    if (headScaleSlider && headWrapper) {
+      headScaleSlider.addEventListener('input', function (e) {
+        const val = e.target.value;
+        headWrapper.style.width = `${val}%`;
+        headWrapper.style.height = `${val}%`;
+      });
+    }
+
+    if (headGlowSlider && headImg) {
+      headGlowSlider.addEventListener('input', function (e) {
+        const blurPx = e.target.value;
+        headImg.style.filter = `drop-shadow(0 0 ${blurPx}px rgba(255, 25, 25, 0.65)) drop-shadow(0 14px 28px rgba(0, 0, 0, 0.9))`;
+      });
+    }
+
+    if (hideHelperBtn && cutoutHelperBar) {
+      hideHelperBtn.addEventListener('click', function () {
+        cutoutHelperBar.style.display = 'none';
+      });
+    }
+  </script>
 </body>
 </html>
