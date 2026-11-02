@@ -15,6 +15,7 @@ let animationFrame = 0;
 let activeSpeechText = "";
 let interruptionTimer = null;
 let restartTimer = null;
+let recognitionStartTimer = null;
 let queuedUtterance = "";
 let chatBusy = false;
 
@@ -109,6 +110,7 @@ function createRecognition() {
   recognition.interimResults = true;
   recognition.maxAlternatives = 1;
   recognition.onstart = () => {
+    clearTimeout(recognitionStartTimer);
     if (sessionActive && !playbackSource && !busy) setMode("listening", "LISTENING", "I'm listening. Speak naturally.");
   };
   recognition.onerror = (event) => {
@@ -159,8 +161,18 @@ function createRecognition() {
 function startListening() {
   if (!sessionActive || !recognition) return;
   setMode("connecting", "ACTIVATING MICROPHONE", "Connecting to your microphone…");
-  try { recognition.start(); }
-  catch (error) {
+  clearTimeout(recognitionStartTimer);
+  try {
+    recognition.start();
+    // Some Android browser builds expose SpeechRecognition but never fire
+    // onstart. Do not leave the HUD looking active while the mic is idle.
+    recognitionStartTimer = setTimeout(() => {
+      if (sessionActive && recognition && !recorderFallback) {
+        logEvent("Speech recognition startup timed out");
+        activateRecorderFallback(new Error("Speech recognition did not start."));
+      }
+    }, 3500);
+  } catch (error) {
     logEvent("Browser speech recognition could not start");
     activateRecorderFallback(error);
   }
@@ -363,6 +375,7 @@ function stopSession() {
   queuedUtterance = "";
   clearTimeout(interruptionTimer);
   clearTimeout(restartTimer);
+  clearTimeout(recognitionStartTimer);
   try { recognition?.stop(); } catch {}
   recognition = null;
   if(mediaRecorder&&mediaRecorder.state!=="inactive"){try{mediaRecorder.stop()}catch{}}
