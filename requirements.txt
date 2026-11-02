@@ -25,3 +25,6 @@ webrtcvad
 sounddevice
 librosa
 torchaudio
+
+# Optional hosted Chatterbox speech provider
+gradio_client>=1.5,<2
