@@ -317,12 +317,9 @@ function pauseMicrophoneForSpeech() {
 function resumeMicrophoneAfterSpeech() {
   voiceOutputActive = false;
   if (!sessionActive) return;
-  if (recorderFallback) {
-    if (!vadFrame) startFallbackRecording();
-  } else if (recognition) {
-    // Continuous recognition restarts itself from onend.
-    startListening();
-  }
+  if (recorderFallback && !vadFrame) startFallbackRecording();
+  // Native SpeechRecognition is intentionally left running through playback.
+  // Its onend handler restarts it only if Android Chrome ends the capture cycle.
 }
 async function speak(text) {
   pauseMicrophoneForSpeech();
