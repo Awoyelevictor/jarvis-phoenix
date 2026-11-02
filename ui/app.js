@@ -6,6 +6,7 @@ let mediaRecorder = null;
 let recordedChunks = [];
 let recorderFallback = false;
 let sessionActive = false;
+let voiceOutputActive = false;
 let busy = false;
 let finalTranscript = "";
 let audioContext = null;
@@ -90,7 +91,6 @@ async function prepareAudio() {
   if (!analyser) {
     analyser = audioContext.createAnalyser();
     analyser.fftSize = 2048;
-    analyser.connect(audioContext.destination);
   }
 }
 function normalized(text) {
@@ -158,7 +158,7 @@ function createRecognition() {
     if (!sessionActive) return;
     clearTimeout(restartTimer);
     restartTimer = setTimeout(() => {
-      if (!sessionActive || !recognition) return;
+      if (!sessionActive || !recognition || voiceOutputActive || busy) return;
       try { recognition.start(); } catch {}
     }, 250);
   };
@@ -287,15 +287,38 @@ async function processUtterance(text) {
     }
   }
 }
+function pauseMicrophoneForSpeech() {
+  voiceOutputActive = true;
+  clearTimeout(restartTimer);
+  if (recognition) {
+    try { recognition.stop(); } catch {}
+  }
+  microphoneStream?.getAudioTracks().forEach(track => { track.enabled = false; });
+  if (vadFrame) cancelAnimationFrame(vadFrame);
+  vadFrame = 0;
+}
+function resumeMicrophoneAfterSpeech() {
+  voiceOutputActive = false;
+  if (!sessionActive) return;
+  microphoneStream?.getAudioTracks().forEach(track => { track.enabled = true; });
+  if (recorderFallback) {
+    if (!vadFrame) startFallbackRecording();
+  } else if (recognition) {
+    startListening();
+  }
+}
 async function speak(text) {
+  pauseMicrophoneForSpeech();
   setMode("thinking", "GENERATING VOICE", "Preparing ULTRON's natural voice.");
+  let speechStarted = false;
+  try {
   const response = await fetch("/api/voice", {
     method: "POST", headers: {"Content-Type":"application/json"},
     body: JSON.stringify({text})
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || "Gemini voice generation failed.");
-  if (!sessionActive) return;
+  if (!sessionActive) { resumeMicrophoneAfterSpeech(); return; }
   await prepareAudio();
   const binary = atob(data.audio);
   const bytes = new Uint8Array(binary.length);
@@ -307,18 +330,25 @@ async function speak(text) {
   const source = playbackSource;
   source.buffer = audioBuffer;
   source.connect(analyser);
+  source.connect(audioContext.destination);
   source.onended = () => {
     if (playbackSource !== source) return;
     playbackSource = null;
     activeSpeechText = "";
     resetGlow();
-    if (sessionActive && !busy) setMode("listening", "LISTENING", "I'm listening. You can interrupt me at any time.");
+    resumeMicrophoneAfterSpeech();
+    if (sessionActive && !busy) setMode("listening", "LISTENING", "I'm listening. Speak naturally.");
     else if (!sessionActive) setMode("standby", "SYSTEM STANDBY", "Text channel active.");
   };
   setMode("speaking", "ULTRON IS SPEAKING", "Speak at any time to interrupt.");
   $("control-caption").textContent = "VOICE OUTPUT · MIC ACTIVE";
   source.start();
+  speechStarted = true;
   animateAudio();
+  } catch (error) {
+    if (!speechStarted) resumeMicrophoneAfterSpeech();
+    throw error;
+  }
 }
 function updateControls() {
   $("mic-button")?.classList.toggle("active", sessionActive);
@@ -432,6 +462,7 @@ async function toggleHeadVoice(){
 }
 function stopSession() {
   sessionActive = false;
+  voiceOutputActive = false;
   busy = false;
   queuedUtterance = "";
   clearTimeout(interruptionTimer);
