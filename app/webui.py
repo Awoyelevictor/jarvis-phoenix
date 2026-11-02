@@ -13,7 +13,7 @@ from app.providers import ProviderError
 from app.speech import GeminiSpeechProvider
 
 UI_DIR = Path(__file__).resolve().parent.parent / "ui"
-MAX_BODY_BYTES = 64 * 1024
+MAX_BODY_BYTES = 14 * 1024 * 1024
 MAX_SPEECH_CHARS = 6000
 
 
@@ -131,6 +131,20 @@ def make_handler(assistant: Assistant):
                     self._json(200, {"ok": True, "synced": count})
                 except RuntimeError as exc:
                     self._json(502, {"error": str(exc)})
+                return
+
+            if route == "/api/transcribe":
+                audio=body.get("audio")
+                mime_type=body.get("mime_type","audio/webm")
+                if not isinstance(audio,str) or not audio:
+                    self._json(400,{"error":"Microphone audio is required."})
+                    return
+                try:
+                    transcript=speech.transcribe(audio,str(mime_type))
+                    self._json(200,{"transcript":transcript})
+                except ProviderError as exc:
+                    print(f"[ULTRON] Microphone transcription failed: {exc}",flush=True)
+                    self._json(502,{"error":str(exc)})
                 return
 
             if route == "/api/voice":
