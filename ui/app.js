@@ -11,6 +11,8 @@ let animationFrame = 0;
 let activeSpeechText = "";
 let interruptionTimer = null;
 let restartTimer = null;
+let queuedUtterance = "";
+let chatBusy = false;
 
 function toast(message) {
   const el = $("toast");
@@ -19,11 +21,25 @@ function toast(message) {
   clearTimeout(toast.timer);
   toast.timer = setTimeout(() => el.classList.remove("show"), 4200);
 }
+function logEvent(message) {
+  const host = $("system-log-lines");
+  if (!host) return;
+  const p = document.createElement("p");
+  const time = document.createElement("time");
+  const label = document.createElement("span");
+  time.textContent = new Date().toLocaleTimeString([], {hour12:false});
+  label.textContent = message.toUpperCase();
+  p.append(time, label);
+  host.prepend(p);
+  while (host.children.length > 4) host.lastElementChild.remove();
+}
 function setMode(mode, label, hint) {
   document.body.dataset.mode = mode;
   $("voice-state").textContent = label;
   $("voice-hint").textContent = hint;
   $("state-label").textContent = mode.toUpperCase();
+  $("overall-status").textContent = mode === "standby" ? "STANDBY" : mode.toUpperCase();
+  $("overall-detail").textContent = mode === "listening" ? "Microphone active" : mode === "speaking" ? "Voice output active" : mode === "thinking" ? "Processing request" : mode === "error" ? "Check system connection" : "Awaiting activation";
 }
 function resetGlow() {
   cancelAnimationFrame(animationFrame);
@@ -96,6 +112,7 @@ function createRecognition() {
       sessionActive = false;
       updateControls();
       toast("Microphone permission was denied. Allow microphone access in Chrome site settings.");
+      logEvent("Microphone permission denied");
     } else if (event.error !== "no-speech" && event.error !== "aborted") {
       toast("Microphone issue: " + event.error);
     }
@@ -107,18 +124,14 @@ function createRecognition() {
       if (event.results[i].isFinal) finalTranscript += (finalTranscript ? " " : "") + transcript;
       else interim += " " + transcript;
     }
-
     if (playbackSource && interim.trim() && !looksLikeEcho(interim)) {
       stopUltronSpeech();
-      setMode("listening", "INTERRUPTED", "I have the floor back. Go ahead, Creator.");
+      setMode("listening", "INTERRUPTED", "I have the floor back. Go ahead.");
       clearTimeout(interruptionTimer);
       interruptionTimer = setTimeout(() => {
-        if (sessionActive && !finalTranscript.trim() && !busy) {
-          speak("I thought you were saying something, Creator. Do continue.");
-        }
+        if (sessionActive && !finalTranscript.trim() && !busy) speak("I thought you were saying something. Do continue.").catch(() => {});
       }, 2600);
     }
-
     if (finalTranscript.trim()) {
       const spoken = finalTranscript.trim();
       finalTranscript = "";
@@ -126,10 +139,7 @@ function createRecognition() {
       if (playbackSource && looksLikeEcho(spoken)) return;
       if (playbackSource) stopUltronSpeech();
       if (sessionActive && !busy) processUtterance(spoken);
-      else if (sessionActive && busy) {
-        // An active request is still being generated; queue the interruption.
-        queuedUtterance = spoken;
-      }
+      else if (sessionActive && busy) queuedUtterance = spoken;
     }
   };
   recognition.onend = () => {
@@ -141,48 +151,85 @@ function createRecognition() {
     }, 250);
   };
 }
-let queuedUtterance = "";
 function startListening() {
   if (!sessionActive || !recognition) return;
   try { recognition.start(); } catch {}
 }
-async function processUtterance(text) {
-  if (busy) { queuedUtterance = text; return; }
-  busy = true;
-  setMode("thinking", "PROCESSING", "One moment. I'm working on that.");
+function addMessage(role, text, pending = false) {
+  const feed = $("chat-feed");
+  $("empty-chat")?.remove();
+  const article = document.createElement("article");
+  article.className = `message ${role}${pending ? " pending" : ""}`;
+  const meta = document.createElement("div");
+  meta.className = "message-meta";
+  meta.textContent = role === "user" ? "YOU / COMMAND" : "ULTRON / RESPONSE";
+  const p = document.createElement("p");
+  p.textContent = text;
+  article.append(meta, p);
+  feed.append(article);
+  feed.scrollTop = feed.scrollHeight;
+  return {article, paragraph:p};
+}
+async function sendChatMessage(text, fromVoice = false) {
+  const prompt = (text || "").trim();
+  if (!prompt || chatBusy) return;
+  chatBusy = true;
+  $("send-button").disabled = true;
+  addMessage("user", prompt);
+  const pending = addMessage("assistant", "Establishing response…", true);
+  setMode("thinking", "PROCESSING", "Analysing your command.");
+  logEvent("Incoming command received");
   try {
     const response = await fetch("/api/chat", {
-      method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({prompt: text})
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({prompt})
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "AI request failed.");
-    if (!sessionActive) return;
-    await speak(data.reply || "I don't have a response for that.");
+    const reply = data.reply || "I don't have a response for that.";
+    pending.paragraph.textContent = reply;
+    pending.article.classList.remove("pending");
+    logEvent("Response generated successfully");
+    if (fromVoice && sessionActive) await speak(reply);
+    else if (sessionActive && !playbackSource) setMode("listening", "LISTENING", "I'm listening. You can interrupt me at any time.");
+    else if (!sessionActive) setMode("standby", "SYSTEM STANDBY", "Text channel active. Activate voice whenever you're ready.");
   } catch (error) {
-    if (sessionActive) {
-      toast(error.message);
-      setMode("error", "CONNECTION ERROR", "Check your AI provider and try speaking again.");
-      await new Promise(resolve => setTimeout(resolve, 1400));
-    }
+    pending.paragraph.textContent = "Request failed: " + error.message;
+    pending.article.classList.remove("pending");
+    logEvent("AI request failed");
+    toast(error.message);
+    setMode("error", "CONNECTION ERROR", "Check your AI provider and try again.");
   } finally {
+    chatBusy = false;
+    $("send-button").disabled = false;
+    if (sessionActive && queuedUtterance && !busy) {
+      const next = queuedUtterance;
+      queuedUtterance = "";
+      processUtterance(next);
+    }
+  }
+}
+async function processUtterance(text) {
+  if (busy) { queuedUtterance = text; return; }
+  busy = true;
+  try { await sendChatMessage(text, true); }
+  finally {
     busy = false;
     if (sessionActive && queuedUtterance) {
-      stopUltronSpeech();
       const next = queuedUtterance;
       queuedUtterance = "";
       processUtterance(next);
     } else if (sessionActive && !playbackSource) {
-      setMode("listening", "LISTENING", "I'm listening. You can speak at any time.");
+      setMode("listening", "LISTENING", "I'm listening. You can interrupt me at any time.");
     } else if (!sessionActive) {
-      setMode("standby", "SYSTEM STANDBY", "Tap the core to begin a voice session");
+      setMode("standby", "SYSTEM STANDBY", "Text channel active. Activate voice whenever you're ready.");
     }
   }
 }
 async function speak(text) {
   setMode("thinking", "GENERATING VOICE", "Preparing ULTRON's natural voice.");
   const response = await fetch("/api/voice", {
-    method: "POST", headers: {"Content-Type": "application/json"},
+    method: "POST", headers: {"Content-Type":"application/json"},
     body: JSON.stringify({text})
   });
   const data = await response.json();
@@ -205,10 +252,9 @@ async function speak(text) {
     activeSpeechText = "";
     resetGlow();
     if (sessionActive && !busy) setMode("listening", "LISTENING", "I'm listening. You can interrupt me at any time.");
-    else if (!sessionActive) setMode("standby", "SYSTEM STANDBY", "Tap the core to begin a voice session");
+    else if (!sessionActive) setMode("standby", "SYSTEM STANDBY", "Text channel active.");
   };
   setMode("speaking", "ULTRON IS SPEAKING", "Speak at any time to interrupt.");
-  $("mic-button").classList.remove("active");
   $("control-caption").textContent = "VOICE OUTPUT · MIC ACTIVE";
   source.start();
   animateAudio();
@@ -216,12 +262,12 @@ async function speak(text) {
 function updateControls() {
   $("mic-button").classList.toggle("active", sessionActive);
   $("mic-button").setAttribute("aria-label", sessionActive ? "End voice conversation" : "Start voice conversation");
-  $("control-caption").textContent = sessionActive ? "ALWAYS LISTENING" : "ACTIVATE VOICE";
+  $("control-caption").textContent = sessionActive ? "VOICE SESSION ACTIVE" : "ACTIVATE VOICE";
   $("stop-button").hidden = !sessionActive;
 }
 async function startSession() {
   if (!SpeechRecognition) {
-    toast("Continuous speech recognition is unavailable in this browser. Try the latest Chrome.");
+    toast("Continuous speech recognition is unavailable here. Try the latest Chrome browser.");
     return;
   }
   try {
@@ -229,10 +275,9 @@ async function startSession() {
     createRecognition();
     sessionActive = true;
     updateControls();
+    logEvent("Voice session activated");
     startListening();
-  } catch (error) {
-    toast(error.message || "Could not start voice session.");
-  }
+  } catch (error) { toast(error.message || "Could not start voice session."); }
 }
 function stopSession() {
   sessionActive = false;
@@ -245,9 +290,63 @@ function stopSession() {
   stopUltronSpeech();
   resetGlow();
   updateControls();
-  setMode("standby", "SYSTEM STANDBY", "Tap the core to begin a voice session");
+  setMode("standby", "SYSTEM STANDBY", "Text channel active. Activate voice whenever you're ready.");
+  logEvent("Voice session ended");
+}
+async function loadStatus() {
+  try {
+    const response = await fetch("/api/status", {cache:"no-store"});
+    if (!response.ok) throw new Error("Status unavailable");
+    const data = await response.json();
+    const cloud = (data.providers || []).find(item => item.name.toLowerCase().includes("cloud"));
+    const localMemory = data.local_memory === true;
+    setMetric("cloud-status", "cloud-bar", cloud?.ready, cloud?.ready ? "ONLINE" : "OFFLINE");
+    setMetric("voice-status", "voice-bar", data.voice_ready, data.voice_ready ? "READY" : "OFFLINE");
+    setMetric("memory-status", "memory-bar", localMemory, localMemory ? "ACTIVE" : "OFFLINE");
+    $("model-name").textContent = data.cloud_model || "NOT SET";
+    $("voice-name").textContent = data.tts_voice || "NOT SET";
+    $("memory-sync").textContent = data.cloud_memory ? "CLOUD + LOCAL" : "LOCAL ONLY";
+    $("listen-capability").textContent = data.continuous_listening ? "SUPPORTED" : "LIMITED";
+    logEvent(cloud?.ready ? "Cloud intelligence configured" : "Cloud intelligence unavailable");
+    logEvent(data.voice_ready ? "Gemini voice configured" : "Voice provider unavailable");
+    if (!cloud?.ready) $("overall-detail").textContent = "Cloud provider needs attention";
+  } catch {
+    ["cloud-status","voice-status","memory-status"].forEach(id => $(id).textContent = "UNKNOWN");
+    logEvent("Unable to retrieve system status");
+  }
+}
+function setMetric(labelId, barId, ready, label) {
+  const el = $(labelId), bar = $(barId);
+  el.textContent = label;
+  el.classList.toggle("ready", !!ready);
+  el.classList.toggle("offline", !ready);
+  bar.style.width = ready ? "100%" : "12%";
+}
+async function resetConversation() {
+  if (!confirm("Reset the current conversation? Persistent saved memories will be preserved.")) return;
+  try {
+    const response = await fetch("/api/reset", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({})});
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Reset failed");
+    $("chat-feed").innerHTML = '<div class="empty-chat" id="empty-chat"><span class="empty-mark">⌁</span><strong>CHANNEL READY</strong><p>Conversation reset. Send a new command.</p></div>';
+    logEvent("Conversation context reset");
+    toast("Conversation reset. Saved memories were preserved.");
+  } catch (error) { toast(error.message); }
 }
 $("mic-button").addEventListener("click", () => sessionActive ? stopSession() : startSession());
 $("stop-button").addEventListener("click", stopSession);
-$("voice-engine").textContent = "GEMINI TTS · ALGENIB · INTERRUPTIBLE";
+$("chat-form").addEventListener("submit", event => {
+  event.preventDefault();
+  const input = $("chat-input");
+  const message = input.value.trim();
+  if (!message || chatBusy) return;
+  input.value = "";
+  sendChatMessage(message, false);
+});
+$("reset-button").addEventListener("click", resetConversation);
+$("voice-engine")?.replaceChildren();
+function updateClock() { $("clock").textContent = new Date().toLocaleTimeString([], {hour12:false}); }
+updateClock();
+setInterval(updateClock, 1000);
+loadStatus();
 if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
