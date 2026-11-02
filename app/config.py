@@ -24,6 +24,8 @@ class Settings:
     tts_model: str = DEFAULT_TTS_MODEL
     tts_voice: str = "Algenib"
     tts_style: str = DEFAULT_TTS_STYLE
+    tts_provider: str = "gemini"
+    chatterbox_space_url: str = ""
     request_timeout: float = 90.0
     conversation_history_messages: int = 20
     memory_db_path: str = ""
@@ -51,6 +53,8 @@ class Settings:
             tts_model=os.getenv("PHOENIX_TTS_MODEL", DEFAULT_TTS_MODEL),
             tts_voice=os.getenv("PHOENIX_TTS_VOICE", "Algenib"),
             tts_style=os.getenv("PHOENIX_TTS_STYLE", DEFAULT_TTS_STYLE),
+            tts_provider=os.getenv("PHOENIX_TTS_PROVIDER", "gemini").strip().lower(),
+            chatterbox_space_url=os.getenv("PHOENIX_CHATTERBOX_SPACE_URL", "").strip(),
             request_timeout=float(os.getenv("PHOENIX_REQUEST_TIMEOUT", "90")),
             conversation_history_messages=max(2, int(os.getenv("PHOENIX_HISTORY_MESSAGES", "20"))),
             memory_db_path=os.getenv("ULTRON_MEMORY_DB", ""),
