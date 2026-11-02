@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 from app.assistant import Assistant
 from app.config import Settings
 from app.providers import ProviderError
-from app.speech import GeminiSpeechProvider
+from app.speech import ChatterboxSpeechProvider, GeminiSpeechProvider
 
 UI_DIR = Path(__file__).resolve().parent.parent / "ui"
 MAX_BODY_BYTES = 64 * 1024
@@ -18,7 +18,12 @@ MAX_SPEECH_CHARS = 6000
 
 
 def make_handler(assistant: Assistant):
-    speech = GeminiSpeechProvider(assistant.settings)
+    speech_provider = assistant.settings.tts_provider
+    speech = (
+        ChatterboxSpeechProvider(assistant.settings)
+        if speech_provider == "chatterbox"
+        else GeminiSpeechProvider(assistant.settings)
+    )
 
     class UltronHandler(BaseHTTPRequestHandler):
         server_version = "ULTRON/0.3"
@@ -51,17 +56,23 @@ def make_handler(assistant: Assistant):
                     {"name": name, "ready": ready, "detail": detail}
                     for name, ready, detail in assistant.check_providers()
                 ]
+                voice_ready = (
+                    bool(assistant.settings.chatterbox_space_url)
+                    if speech_provider == "chatterbox"
+                    else bool(
+                        assistant.settings.tts_api_key
+                        or ("generativelanguage.googleapis.com" in assistant.settings.cloud_base_url
+                            and assistant.settings.cloud_api_key)
+                    )
+                )
                 self._json(200, {
                     "name": "ULTRON",
                     "providers": providers,
                     "cloud_model": assistant.settings.cloud_model,
-                    "tts_model": assistant.settings.tts_model,
+                    "tts_model": "Chatterbox (hosted)" if speech_provider == "chatterbox" else assistant.settings.tts_model,
                     "tts_voice": assistant.settings.tts_voice,
-                    "voice_ready": bool(
-                        assistant.settings.tts_api_key
-                        or ("generativelanguage.googleapis.com" in assistant.settings.cloud_base_url
-                            and assistant.settings.cloud_api_key)
-                    ),
+                    "tts_provider": speech_provider,
+                    "voice_ready": voice_ready,
                     "local_memory": True,
                     "cloud_memory": assistant.memory.cloud_configured,
                     "continuous_listening": True,
@@ -142,7 +153,7 @@ def make_handler(assistant: Assistant):
                     audio, mime_type = speech.synthesize(text)
                     self._json(200, {"audio": audio, "mime_type": mime_type})
                 except ProviderError as exc:
-                    print(f"[ULTRON] Gemini voice provider failed: {exc}", flush=True)
+                    print(f"[ULTRON] {speech_provider} voice provider failed: {exc}", flush=True)
                     self._json(502, {"error": str(exc)})
                 return
 
