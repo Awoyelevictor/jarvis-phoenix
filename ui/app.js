@@ -190,17 +190,11 @@ async function activateRecorderFallback(cause) {
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
       throw new Error("This browser cannot access microphone recording. Open ULTRON in Chrome and allow microphone access.");
     }
-    microphoneStream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-    });
-    try {
-      if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      if (audioContext.state === "suspended") await audioContext.resume();
-      if (!analyser) { analyser = audioContext.createAnalyser(); analyser.fftSize = 2048; }
-      micAudioSource = audioContext.createMediaStreamSource(microphoneStream);
-      micAudioSource.connect(analyser);
-      animateAudio();
-    } catch (audioError) { logEvent("Live microphone visualizer unavailable"); }
+    if (!microphoneStream) {
+      microphoneStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+      });
+    }
     if (!sessionActive) {
       microphoneStream.getTracks().forEach(track => track.stop());
       microphoneStream = null;
@@ -337,21 +331,50 @@ function updateControls() {
 }
 async function startSession() {
   try {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error("Microphone API unavailable. Open ULTRON from http://127.0.0.1:8765 in Chrome.");
+    }
     sessionActive = true;
+    updateControls();
+    setMode("connecting","REQUESTING MICROPHONE","Connecting directly to the phone microphone…");
+    logEvent("Requesting microphone stream directly");
+    // Acquire the real microphone stream first. SpeechRecognition alone can fail
+    // silently on some Android Chrome builds and does not expose a permission prompt.
+    microphoneStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+    });
+    logEvent("Microphone stream granted");
+    try {
+      if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioContext.state === "suspended") await audioContext.resume();
+      if (!analyser) { analyser = audioContext.createAnalyser(); analyser.fftSize = 2048; }
+      micAudioSource = audioContext.createMediaStreamSource(microphoneStream);
+      micAudioSource.connect(analyser);
+      animateAudio();
+    } catch (audioError) { logEvent("Audio visualizer deferred until interaction"); }
+    if (!sessionActive) return;
     if (SpeechRecognition) {
-      try { await prepareAudio(); } catch (audioError) { logEvent("Audio output context will resume after interaction"); }
       createRecognition();
       recorderFallback = false;
-      updateControls();
       logEvent("Browser speech recognition requested");
       startListening();
       return;
     }
     await activateRecorderFallback();
   } catch (error) {
-    sessionActive=false; updateControls(); logEvent("Microphone activation failed");
-    toast(error.name==="NotAllowedError"?"Microphone permission denied. Allow microphone access for 127.0.0.1 in Chrome settings.":(error.message||"Could not start microphone."));
-    setMode("error","MICROPHONE ERROR","Allow microphone access and tap the head again.");
+    sessionActive = false;
+    microphoneStream?.getTracks().forEach(track => track.stop());
+    microphoneStream = null;
+    micAudioSource?.disconnect(); micAudioSource = null;
+    updateControls();
+    logEvent("Microphone activation failed: " + (error.name || error.message || "unknown"));
+    const message = error.name === "NotAllowedError" || error.name === "SecurityError"
+      ? "Chrome denied microphone access. Check Android app permission and Chrome site settings, then reload."
+      : error.name === "NotFoundError"
+        ? "No microphone was found on this device."
+        : error.message || "Could not start microphone.";
+    toast(message);
+    setMode("error","MICROPHONE ERROR",message);
   }
 }
 function startFallbackRecording() {
