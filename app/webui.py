@@ -63,6 +63,9 @@ def make_handler(assistant: Assistant):
                             and assistant.settings.cloud_api_key)
                     ),
                     "local_memory": True,
+                    "memory_count": len(assistant.memory.list()),
+                    "profile_json": assistant.profile_path.is_file(),
+                    "profile_json_path": str(assistant.profile_path),
                     "cloud_memory": assistant.memory.cloud_configured,
                     "continuous_listening": True,
                     "speaker_recognition": False,
