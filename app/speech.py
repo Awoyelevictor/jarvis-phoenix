@@ -16,6 +16,30 @@ class GeminiSpeechProvider:
     def __init__(self, settings: Settings):
         self.settings = settings
 
+    def transcribe(self, audio_base64: str, mime_type: str) -> str:
+        """Transcribe a browser-recorded microphone clip with Gemini Flash."""
+        api_key=self.settings.tts_api_key
+        if not api_key: raise ProviderError("Gemini API key is not configured for microphone transcription.")
+        if not mime_type.startswith("audio/"): raise ProviderError("Unsupported microphone audio format.")
+        try: audio_bytes=base64.b64decode(audio_base64,validate=True)
+        except (ValueError,TypeError) as exc: raise ProviderError("Microphone audio is not valid base64 data.") from exc
+        if not audio_bytes or len(audio_bytes)>10*1024*1024: raise ProviderError("Microphone recording is empty or too large.")
+        payload={"contents":[{"role":"user","parts":[
+            {"text":"Transcribe the speech in this audio. Return only the exact spoken words, without commentary. If no speech is intelligible, return an empty response."},
+            {"inlineData":{"mimeType":mime_type,"data":audio_base64}}
+        ]}],"generationConfig":{"temperature":0}}
+        request=Request("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+            data=json.dumps(payload).encode("utf-8"),headers={"Content-Type":"application/json","x-goog-api-key":api_key},method="POST")
+        try:
+            with urlopen(request,timeout=self.settings.request_timeout) as response: result=json.loads(response.read().decode("utf-8"))
+        except HTTPError as exc:
+            detail=exc.read().decode("utf-8",errors="replace")[:1000]
+            raise ProviderError(f"Gemini transcription failed (HTTP {exc.code}): {detail}") from exc
+        except (URLError,TimeoutError,OSError,ValueError) as exc: raise ProviderError(f"Gemini transcription connection failed: {exc}") from exc
+        try: return " ".join(part.get("text","") for part in result["candidates"][0]["content"]["parts"]).strip()
+        except (KeyError,IndexError,TypeError) as exc:
+            raise ProviderError(result.get("error",{}).get("message","Gemini returned no transcript.")) from exc
+
     def synthesize(self, text: str) -> tuple[str, str]:
         api_key = self.settings.tts_api_key
         # Preserve compatibility for direct Gemini-only Settings instances.
