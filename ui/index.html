@@ -282,6 +282,29 @@
       }
     }
   </style>
+<style>
+#ultronAssistantConsole{position:fixed;z-index:80;right:22px;bottom:22px;width:min(430px,calc(100vw - 28px));height:min(620px,calc(100dvh - 44px));display:none;flex-direction:column;background:rgba(5,6,9,.97);border:1px solid rgba(255,55,30,.72);box-shadow:0 0 32px rgba(255,35,15,.24),inset 0 0 26px rgba(255,35,15,.06);backdrop-filter:blur(16px);color:#e8edf2;font-family:'Rajdhani',sans-serif}
+#ultronAssistantConsole.open{display:flex}#ultronAssistantConsole .uc-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid rgba(255,55,30,.35)}
+#ultronAssistantConsole .uc-title{font-family:'Orbitron',sans-serif;font-size:13px;letter-spacing:.15em;color:#ff6048}#ultronAssistantConsole .uc-status{font:11px 'Share Tech Mono',monospace;color:#aab5c2;margin-top:4px}
+#ultronAssistantConsole button{cursor:pointer}#ultronAssistantConsole .uc-close{border:1px solid rgba(255,255,255,.18);padding:4px 9px;color:#dce3eb;background:transparent}
+#ultronAssistantConsole #chat-feed{flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px;user-select:text}
+#ultronAssistantConsole .empty-chat{margin:auto;text-align:center;color:#aab5c2}#ultronAssistantConsole .empty-mark{display:block;font-size:30px;color:#ff4930}
+#ultronAssistantConsole .message{max-width:92%;padding:10px 12px;background:#15171c;border-left:2px solid #687482;overflow-wrap:anywhere}
+#ultronAssistantConsole .message.user{align-self:flex-end;border-left:0;border-right:2px solid #ff4930;background:#21100f}
+#ultronAssistantConsole .message.assistant{align-self:flex-start;border-left:2px solid #ff4930}
+#ultronAssistantConsole .message-meta{font:10px 'Share Tech Mono',monospace;color:#ff816d;margin-bottom:5px;letter-spacing:.08em}
+#ultronAssistantConsole .message p{font-size:15px;line-height:1.35;white-space:pre-wrap;user-select:text}#ultronAssistantConsole .message.pending p{color:#aab5c2}
+#ultronAssistantConsole .uc-form{display:flex;gap:8px;padding:12px;border-top:1px solid rgba(255,55,30,.3)}
+#ultronAssistantConsole #chat-input{min-width:0;flex:1;background:#0b0d11;border:1px solid #45404a;color:#fff;padding:11px;font:14px 'Rajdhani',sans-serif;outline:none;user-select:text}
+#ultronAssistantConsole #chat-input:focus{border-color:#ff4930}#ultronAssistantConsole #send-button,.uc-action{background:#a91e13;color:#fff;border:1px solid #ff5941;padding:9px 12px;font:11px 'Orbitron',sans-serif;letter-spacing:.08em}
+#ultronAssistantConsole #send-button:disabled{opacity:.45}#ultronAssistantConsole .uc-actions{display:flex;gap:8px;padding:0 12px 12px;align-items:center}
+#ultronAssistantConsole #control-caption{font:10px 'Share Tech Mono',monospace;color:#aab5c2;flex:1}#ultronAssistantConsole #stop-button[hidden]{display:none}
+#ultronAssistantConsole #toast{position:absolute;left:12px;right:12px;top:64px;padding:9px;background:#34100e;border:1px solid #ff4930;color:#fff;display:none;font-size:13px}
+#ultronAssistantConsole #toast.show{display:block}#ultronAssistantConsole #clock{font:10px 'Share Tech Mono',monospace;color:#aab5c2}
+#ultronAssistantConsole .uc-metrics{display:flex;gap:12px;padding:8px 14px;border-top:1px solid rgba(255,255,255,.08);font:10px 'Share Tech Mono',monospace;color:#aab5c2;flex-wrap:wrap}
+#chat-launcher{cursor:pointer;pointer-events:auto}#chat-launcher:focus-visible{outline:2px solid #ff654e;outline-offset:4px}
+@media(max-width:768px){#ultronAssistantConsole{right:10px;bottom:10px;width:calc(100vw - 20px);height:min(76dvh,680px)}}
+</style>
 </head>
 <body>
 
@@ -785,7 +808,7 @@
         <!-- 5. BOTTOM-LEFT: 4 CIRCULAR TECH ICONS DOCK -->
         <div class="absolute left-[46px] top-[743px] w-[332px] flex items-center justify-between">
           <!-- Icon 1: Glowing Red AI Brain/Skull Node -->
-          <div class="w-[42px] h-[42px] rounded-full bg-[#1a0606] border border-[#ff4422] flex items-center justify-center shadow-[0_0_16px_rgba(255,40,15,0.8),inset_0_0_10px_rgba(255,60,20,0.65)]">
+          <div id="chat-launcher" role="button" tabindex="0" aria-label="Open ULTRON command console" title="Open command console" class="w-[42px] h-[42px] rounded-full bg-[#1a0606] border border-[#ff4422] flex items-center justify-center shadow-[0_0_16px_rgba(255,40,15,0.8),inset_0_0_10px_rgba(255,60,20,0.65)]">
             <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none">
               <circle cx="12" cy="11.5" r="5.5" fill="#ff3b18" filter="drop-shadow(0 0 5px #ff2200)" />
               <circle cx="10" cy="11" r="1.1" fill="#fff5ee" />
@@ -1123,5 +1146,16 @@
     }
   </script>
   <script src="./app.js" defer></script>
+<section id="ultronAssistantConsole" aria-label="ULTRON assistant console">
+<header class="uc-head"><div><div class="uc-title">ULTRON // COMMAND CHANNEL</div><div class="uc-status"><span id="voice-state">SYSTEM STANDBY</span> · <span id="clock">--:--:--</span></div></div><button class="uc-close" id="closeAssistantConsole" type="button" aria-label="Close assistant console">✕</button></header>
+<div class="uc-metrics"><span>CLOUD: <b id="cloud-status">CHECKING</b></span><span>VOICE: <b id="voice-status">CHECKING</b></span><span>MEMORY: <b id="memory-status">CHECKING</b></span><span id="model-name" hidden></span><span id="voice-name" hidden></span><span id="memory-sync" hidden></span><span id="listen-capability" hidden></span></div>
+<div id="chat-feed" aria-live="polite"><div class="empty-chat" id="empty-chat"><span class="empty-mark">⌁</span><strong>CHANNEL READY</strong><p>Send a command to ULTRON.</p></div></div>
+<div class="uc-actions"><button id="mic-button" class="uc-action" type="button">VOICE</button><button id="stop-button" class="uc-action" type="button" hidden>STOP VOICE</button><span id="control-caption">ACTIVATE VOICE</span><button id="reset-button" class="uc-action" type="button">RESET</button></div>
+<form id="chat-form" class="uc-form"><input id="chat-input" type="text" autocomplete="off" placeholder="Enter command..." aria-label="Message ULTRON"><button id="send-button" type="submit">SEND</button></form>
+<div id="toast" role="status"></div><div id="overall-status" hidden>STANDBY</div><div id="overall-detail" hidden>Awaiting activation</div><div id="state-label" hidden>STANDBY</div><div id="voice-hint" hidden>Text channel active.</div><div id="system-log-lines" hidden></div><div id="cloud-bar" hidden></div><div id="voice-bar" hidden></div><div id="memory-bar" hidden></div><div id="voice-engine" hidden></div>
+</section>
+<script defer>
+(()=>{const panel=document.getElementById('ultronAssistantConsole');const launcher=document.getElementById('chat-launcher');const close=document.getElementById('closeAssistantConsole');const toggle=()=>{panel.classList.toggle('open');if(panel.classList.contains('open'))document.getElementById('chat-input').focus()};launcher?.addEventListener('click',toggle);launcher?.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle()}});close?.addEventListener('click',()=>panel.classList.remove('open'));document.addEventListener('keydown',e=>{if(e.key==='Escape')panel.classList.remove('open')})})();
+</script>
 </body>
 </html>
