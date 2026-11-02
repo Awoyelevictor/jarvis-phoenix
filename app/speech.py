@@ -6,9 +6,11 @@ speech generation stays separate from chat and persistent memory.
 from __future__ import annotations
 
 import base64
+import io
 import json
 import mimetypes
 import os
+import wave
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -84,17 +86,80 @@ class GeminiSpeechProvider:
 
 
 class ChatterboxSpeechProvider:
-    """Call ULTRON's public Gradio Chatterbox Space and return base64 audio."""
+    """Call ULTRON's public Gradio Chatterbox Space and return base64 WAV audio."""
+
+    MAX_TEXT_CHARS = 1200
+    CHUNK_CHARS = 280
 
     def __init__(self, settings: Settings):
         self.settings = settings
+
+    @classmethod
+    def _chunks(cls, text: str) -> list[str]:
+        words = text.split()
+        chunks: list[str] = []
+        current = ""
+        for word in words:
+            while len(word) > cls.CHUNK_CHARS:
+                if current:
+                    chunks.append(current)
+                    current = ""
+                chunks.append(word[:cls.CHUNK_CHARS])
+                word = word[cls.CHUNK_CHARS:]
+            candidate = f"{current} {word}".strip()
+            if len(candidate) > cls.CHUNK_CHARS and current:
+                chunks.append(current)
+                current = word
+            else:
+                current = candidate
+        if current:
+            chunks.append(current)
+        return chunks
+
+    @staticmethod
+    def _audio_path(result) -> str | None:
+        if isinstance(result, str):
+            return result
+        if isinstance(result, dict):
+            return result.get("path") or result.get("name")
+        if isinstance(result, (tuple, list)) and result:
+            first = result[0]
+            if isinstance(first, str):
+                return first
+            if isinstance(first, dict):
+                return first.get("path") or first.get("name")
+        return None
+
+    @staticmethod
+    def _join_wav_files(paths: list[str]) -> bytes:
+        output = io.BytesIO()
+        params = None
+        frames = []
+        for path in paths:
+            with wave.open(path, "rb") as source:
+                current = source.getparams()
+                signature = (current.nchannels, current.sampwidth, current.framerate, current.comptype)
+                if params is None:
+                    params = current
+                    expected = signature
+                elif signature != expected:
+                    raise ProviderError("Chatterbox returned audio chunks with incompatible formats.")
+                frames.append(source.readframes(source.getnframes()))
+        if not params:
+            raise ProviderError("Chatterbox returned no audio.")
+        with wave.open(output, "wb") as target:
+            target.setparams(params)
+            target.writeframes(b"".join(frames))
+        return output.getvalue()
 
     def synthesize(self, text: str) -> tuple[str, str]:
         text = text.strip()
         if not text:
             raise ProviderError("There is no response to speak.")
-        if len(text) > 300:
-            raise ProviderError("Chatterbox voice requests are limited to 300 characters.")
+        if len(text) > self.MAX_TEXT_CHARS:
+            raise ProviderError(
+                f"Chatterbox speech is limited to {self.MAX_TEXT_CHARS} characters per response."
+            )
         space_url = self.settings.chatterbox_space_url.strip()
         if not space_url:
             raise ProviderError("Set PHOENIX_CHATTERBOX_SPACE_URL to your Hugging Face Space URL.")
@@ -103,33 +168,20 @@ class ChatterboxSpeechProvider:
             from gradio_client import Client
 
             client = Client(space_url, verbose=False)
-            result = client.predict(
-                text,
-                0.42,  # restrained expressiveness
-                0.35,  # guidance strength
-                api_name="/generate",
-            )
-            audio_path = None
-            if isinstance(result, str):
-                audio_path = result
-            elif isinstance(result, dict):
-                audio_path = result.get("path") or result.get("name")
-            elif isinstance(result, (tuple, list)) and result:
-                candidate = result[0]
-                if isinstance(candidate, str):
-                    audio_path = candidate
-                elif isinstance(candidate, dict):
-                    audio_path = candidate.get("path") or candidate.get("name")
-            if not audio_path or not os.path.isfile(audio_path):
-                raise ProviderError("Chatterbox returned no downloadable audio file.")
-            with open(audio_path, "rb") as audio_file:
-                audio_bytes = audio_file.read()
-            if not audio_bytes:
-                raise ProviderError("Chatterbox returned an empty audio file.")
-            mime_type = mimetypes.guess_type(audio_path)[0] or "audio/wav"
-            if not mime_type.startswith("audio/"):
-                mime_type = "audio/wav"
-            return base64.b64encode(audio_bytes).decode("ascii"), mime_type
+            paths = []
+            for chunk in self._chunks(text):
+                result = client.predict(
+                    chunk,
+                    0.42,  # restrained expressiveness
+                    0.35,  # guidance strength
+                    api_name="/generate",
+                )
+                path = self._audio_path(result)
+                if not path or not os.path.isfile(path):
+                    raise ProviderError("Chatterbox returned no downloadable audio file.")
+                paths.append(path)
+            audio_bytes = self._join_wav_files(paths)
+            return base64.b64encode(audio_bytes).decode("ascii"), "audio/wav"
         except ProviderError:
             raise
         except Exception as exc:
