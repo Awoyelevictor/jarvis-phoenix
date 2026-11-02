@@ -181,7 +181,7 @@ function createRecognition() {
     if (!sessionActive) return;
     clearTimeout(restartTimer);
     restartTimer = setTimeout(() => {
-      if (!sessionActive || !recognition || voiceOutputActive || busy) return;
+      if (!sessionActive || !recognition) return;
       try { recognition.start(); } catch {}
     }, 250);
   };
@@ -311,22 +311,16 @@ async function processUtterance(text) {
   }
 }
 function pauseMicrophoneForSpeech() {
+  // Do not pause capture or recognition. The operator can interrupt TTS.
   voiceOutputActive = true;
-  clearTimeout(restartTimer);
-  if (recognition) {
-    try { recognition.stop(); } catch {}
-  }
-  microphoneStream?.getAudioTracks().forEach(track => { track.enabled = false; });
-  if (vadFrame) cancelAnimationFrame(vadFrame);
-  vadFrame = 0;
 }
 function resumeMicrophoneAfterSpeech() {
   voiceOutputActive = false;
   if (!sessionActive) return;
-  microphoneStream?.getAudioTracks().forEach(track => { track.enabled = true; });
   if (recorderFallback) {
     if (!vadFrame) startFallbackRecording();
   } else if (recognition) {
+    // Continuous recognition restarts itself from onend.
     startListening();
   }
 }
