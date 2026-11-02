@@ -23,12 +23,12 @@ def make_handler(assistant: Assistant):
     class UltronHandler(BaseHTTPRequestHandler):
         server_version = "ULTRON/0.3"
 
-        def _send(self, status: int, payload: bytes, content_type: str) -> None:
+        def _send(self, status: int, payload: bytes, content_type: str, cache_control: str = "no-store") -> None:
             self.send_response(status)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(payload)))
             self.send_header("X-Content-Type-Options", "nosniff")
-            self.send_header("Cache-Control", "no-store")
+            self.send_header("Cache-Control", cache_control)
             self.end_headers()
             try:
                 self.wfile.write(payload)
@@ -47,9 +47,23 @@ def make_handler(assistant: Assistant):
         def do_GET(self) -> None:
             route = urlparse(self.path).path
             if route == "/api/status":
+                # Keep startup status local and fast. Ollama is optional and
+                # is checked only if the user needs the local fallback.
                 providers = [
-                    {"name": name, "ready": ready, "detail": detail}
-                    for name, ready, detail in assistant.check_providers()
+                    {
+                        "name": "Local Ollama",
+                        "ready": False,
+                        "detail": "Optional local provider; checked only when a local fallback is needed.",
+                    },
+                    {
+                        "name": "Cloud AI",
+                        "ready": assistant.cloud.configured,
+                        "detail": (
+                            f"Cloud endpoint configured: {assistant.settings.cloud_base_url} "
+                            f"(model: {assistant.settings.cloud_model}; live connectivity is checked when you send a message)."
+                            if assistant.cloud.configured else "Cloud API key not configured (optional)."
+                        ),
+                    },
                 ]
                 self._json(200, {
                     "name": "ULTRON",
@@ -93,7 +107,7 @@ def make_handler(assistant: Assistant):
             content_type = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
             if target.suffix == ".webmanifest":
                 content_type = "application/manifest+json"
-            self._send(200, target.read_bytes(), f"{content_type}; charset=utf-8")
+            self._send(200, target.read_bytes(), f"{content_type}; charset=utf-8", "no-cache" if target.name == "index.html" else "public, max-age=3600")
 
         def do_POST(self) -> None:
             route = urlparse(self.path).path
