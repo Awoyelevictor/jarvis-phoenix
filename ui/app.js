@@ -112,13 +112,14 @@ function createRecognition() {
     if (sessionActive && !playbackSource && !busy) setMode("listening", "LISTENING", "I'm listening. Speak naturally.");
   };
   recognition.onerror = (event) => {
-    if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+    if (event.error === "not-allowed") {
       sessionActive = false;
       updateControls();
       toast("Microphone permission was denied. Allow microphone access in Chrome site settings.");
       logEvent("Microphone permission denied");
     } else if (event.error !== "no-speech" && event.error !== "aborted") {
-      toast("Microphone issue: " + event.error);
+      logEvent("Speech recognition failed: " + event.error);
+      activateRecorderFallback(new Error("Speech recognition unavailable: " + event.error));
     }
   };
   recognition.onresult = (event) => {
@@ -157,7 +158,44 @@ function createRecognition() {
 }
 function startListening() {
   if (!sessionActive || !recognition) return;
-  try { recognition.start(); } catch {}
+  setMode("connecting", "ACTIVATING MICROPHONE", "Connecting to your microphone…");
+  try { recognition.start(); }
+  catch (error) {
+    logEvent("Browser speech recognition could not start");
+    activateRecorderFallback(error);
+  }
+}
+async function activateRecorderFallback(cause) {
+  if (!sessionActive || recorderFallback) return;
+  try {
+    try { recognition?.abort(); } catch {}
+    recognition = null;
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+      throw new Error("This browser cannot access microphone recording. Open ULTRON in Chrome and allow microphone access.");
+    }
+    microphoneStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+    });
+    if (!sessionActive) {
+      microphoneStream.getTracks().forEach(track => track.stop());
+      microphoneStream = null;
+      return;
+    }
+    recorderFallback = true;
+    updateControls();
+    logEvent("Switched to direct microphone recording");
+    startFallbackRecording();
+    toast("Using direct microphone mode.");
+  } catch (error) {
+    sessionActive = false;
+    updateControls();
+    logEvent("Microphone fallback failed");
+    const message = error.name === "NotAllowedError"
+      ? "Microphone permission denied. Allow microphone access for this site in Chrome settings."
+      : (error.message || cause?.message || "Could not activate microphone.");
+    toast(message);
+    setMode("error", "MICROPHONE ERROR", "Allow microphone access, then tap the head again.");
+  }
 }
 function addMessage(role, text, pending = false) {
   const feed = $("chat-feed");
@@ -277,12 +315,14 @@ async function startSession() {
     await prepareAudio();
     sessionActive = true;
     if (SpeechRecognition) {
-      createRecognition(); recorderFallback = false; updateControls();
-      logEvent("Browser speech recognition activated"); startListening(); return;
+      createRecognition();
+      recorderFallback = false;
+      updateControls();
+      logEvent("Browser speech recognition requested");
+      startListening();
+      return;
     }
-    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) throw new Error("This browser cannot record audio. Open ULTRON in current Chrome and allow microphone access.");
-    microphoneStream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
-    recorderFallback = true; updateControls(); logEvent("Microphone recorder activated"); startFallbackRecording();
+    await activateRecorderFallback();
   } catch (error) {
     sessionActive=false; updateControls(); logEvent("Microphone activation failed");
     toast(error.name==="NotAllowedError"?"Microphone permission denied. Allow microphone access for 127.0.0.1 in Chrome settings.":(error.message||"Could not start microphone."));
