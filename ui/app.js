@@ -25,12 +25,28 @@ let vadSpeechStarted = false;
 let vadSilenceAt = 0;
 let vadSegmentStartedAt = 0;
 
+function showAlert(title, message, kind = "error") {
+  const card = $("ultron-alert");
+  if (!card) return;
+  $("ultron-alert-title").textContent = title;
+  $("ultron-alert-message").textContent = message;
+  card.dataset.kind = kind;
+  card.classList.add("show");
+  clearTimeout(showAlert.timer);
+  showAlert.timer = setTimeout(() => card.classList.remove("show"), 7200);
+}
 function toast(message) {
   const el = $("toast");
-  el.textContent = message;
-  el.classList.add("show");
-  clearTimeout(toast.timer);
-  toast.timer = setTimeout(() => el.classList.remove("show"), 4200);
+  if (el) {
+    el.textContent = message;
+    el.classList.add("show");
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(() => el.classList.remove("show"), 4200);
+  }
+  const text = String(message || "");
+  const quota = /quota|rate.?limit|too many requests|billing|credit|insufficient.*(credit|fund)|429/i.test(text);
+  const warning = /quota|rate.?limit|too many requests|429/i.test(text);
+  showAlert(quota ? "AI QUOTA / LIMIT NOTICE" : "SYSTEM ERROR", text, warning ? "warning" : "error");
 }
 function logEvent(message) {
   const host = $("system-log-lines");
@@ -46,6 +62,13 @@ function logEvent(message) {
 }
 function setMode(mode, label, hint) {
   document.body.dataset.mode = mode;
+  const indicator = $("ultron-live-indicator");
+  if (indicator) {
+    const active = mode === "thinking" || mode === "connecting" || mode === "speaking" || mode === "error";
+    indicator.dataset.state = mode === "connecting" ? "thinking" : mode;
+    indicator.classList.toggle("visible", active);
+    $("ultron-live-label").textContent = mode === "speaking" ? "ULTRON SPEAKING" : mode === "error" ? "SYSTEM ERROR" : "THINKING";
+  }
   $("voice-state").textContent = label;
   $("voice-hint").textContent = hint;
   $("state-label").textContent = mode.toUpperCase();
@@ -519,6 +542,7 @@ async function resetConversation() {
     toast("Conversation reset. Saved memories were preserved.");
   } catch (error) { toast(error.message); }
 }
+$("ultron-alert-close")?.addEventListener("click", () => $("ultron-alert")?.classList.remove("show"));
 $("robotHeadWrapper")?.addEventListener("click",toggleHeadVoice);
 $("mic-button")?.addEventListener("click",toggleHeadVoice);
 $("stop-button").addEventListener("click", stopSession);
