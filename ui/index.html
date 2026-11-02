@@ -312,9 +312,32 @@
 #ultronAssistantConsole .uc-actions,#ultronAssistantConsole .uc-form{display:none!important}
 .robot-head-wrapper:focus-visible{filter:drop-shadow(0 0 20px rgba(255,55,25,.95))}
 @media(max-width:768px){#ultronAssistantConsole{right:10px;bottom:10px;width:calc(100vw - 20px);height:min(76dvh,680px)}}
+
+/* Live state chip + cyberpunk alert overlay */
+#ultron-live-indicator{position:fixed;top:16px;right:18px;z-index:120;display:flex;align-items:center;gap:9px;padding:9px 13px;background:rgba(8,10,13,.72);border:1px solid rgba(255,190,40,.45);color:#ffd45a;font:11px 'Share Tech Mono',monospace;letter-spacing:.13em;backdrop-filter:blur(12px);box-shadow:0 0 18px rgba(255,190,40,.10);opacity:0;transform:translateY(-8px);transition:opacity .2s ease,transform .2s ease;pointer-events:none}
+#ultron-live-indicator.visible{opacity:1;transform:translateY(0)}
+#ultron-live-indicator .live-dot{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 10px currentColor;animation:liveBlink .9s ease-in-out infinite alternate}
+#ultron-live-indicator[data-state="thinking"]{color:#ffd45a;border-color:rgba(255,190,40,.55);box-shadow:0 0 22px rgba(255,190,40,.16)}
+#ultron-live-indicator[data-state="speaking"]{color:#ff5945;border-color:rgba(255,55,30,.6);box-shadow:0 0 24px rgba(255,45,20,.22)}
+#ultron-live-indicator[data-state="error"]{color:#ff5148;border-color:rgba(255,55,45,.7)}
+@keyframes liveBlink{to{opacity:.28;transform:scale(.72)}}
+#ultron-alert{position:fixed;z-index:200;top:68px;right:18px;width:min(370px,calc(100vw - 28px));display:grid;grid-template-columns:4px 1fr auto;gap:12px;padding:15px 14px;background:rgba(35,7,10,.82);border:1px solid rgba(255,65,65,.75);backdrop-filter:blur(18px);box-shadow:0 12px 40px rgba(0,0,0,.5),0 0 28px rgba(255,30,35,.22),inset 0 0 24px rgba(255,30,35,.08);color:#f8e9e9;opacity:0;visibility:hidden;transform:translateY(-10px) scale(.98);transition:opacity .22s ease,transform .22s ease,visibility .22s;pointer-events:none}
+#ultron-alert.show{opacity:1;visibility:visible;transform:translateY(0) scale(1);pointer-events:auto}
+#ultron-alert .alert-rail{background:linear-gradient(180deg,#ffaaa0,#ff2424,#700b13);box-shadow:0 0 12px #ff2525}
+#ultron-alert .alert-kicker{font:10px 'Share Tech Mono',monospace;letter-spacing:.18em;color:#ff716b;margin-bottom:5px}
+#ultron-alert .alert-title{font:600 15px 'Orbitron',sans-serif;letter-spacing:.06em;color:#fff;margin-bottom:5px}
+#ultron-alert .alert-message{font:14px 'Rajdhani',sans-serif;line-height:1.35;color:#e7caca;overflow-wrap:anywhere}
+#ultron-alert .alert-close{align-self:start;background:transparent;border:1px solid rgba(255,255,255,.2);color:#ffc8c5;padding:2px 7px;font-size:15px}
+#ultron-alert[data-kind="warning"]{background:rgba(35,25,5,.84);border-color:rgba(255,190,45,.7)}
+#ultron-alert[data-kind="warning"] .alert-rail{background:linear-gradient(180deg,#fff0a0,#ffb323,#80520b);box-shadow:0 0 12px #ffb323}
+#ultron-alert[data-kind="warning"] .alert-kicker{color:#ffd45a}
+@media(max-width:768px){#ultron-live-indicator{top:12px;right:12px;padding:8px 10px;font-size:10px}#ultron-alert{top:58px;right:12px}}
 </style>
 </head>
 <body>
+
+  <div id="ultron-live-indicator" data-state="thinking" role="status" aria-live="polite"><span class="live-dot"></span><span id="ultron-live-label">THINKING</span></div>
+  <aside id="ultron-alert" data-kind="error" role="alert" aria-live="assertive"><span class="alert-rail"></span><div><div class="alert-kicker">ULTRON // SYSTEM NOTICE</div><div class="alert-title" id="ultron-alert-title">SYSTEM ERROR</div><div class="alert-message" id="ultron-alert-message"></div></div><button class="alert-close" id="ultron-alert-close" type="button" aria-label="Dismiss alert">×</button></aside>
 
   <!-- Optional Live Cutout Tester Bar (Upload your transparent PNG or hide this bar anytime) -->
   <div id="cutoutHelperBar" class="fixed top-3 right-3 z-50 flex flex-wrap items-center gap-3 bg-[#0c080a]/95 border border-[#ff3b1f]/50 px-3.5 py-2 rounded shadow-[0_0_20px_rgba(255,30,10,0.3)] text-xs backdrop-blur-md">
