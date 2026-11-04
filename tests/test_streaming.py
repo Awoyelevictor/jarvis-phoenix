@@ -21,9 +21,9 @@ class FakeStreamResponse:
 
 def test_cloud_provider_yields_sse_content_deltas(monkeypatch):
     response = FakeStreamResponse([
-        'data: {"choices":[{"delta":{"content":"Hello"}}]}\\n',
-        'data: {"choices":[{"delta":{"content":" there"}}]}\\n',
-        "data: [DONE]\\n",
+        'data: {"choices":[{"delta":{"content":"Hello"}}]}\n',
+        'data: {"choices":[{"delta":{"content":" there"}}]}\n',
+        "data: [DONE]\n",
     ])
     captured = {}
 
