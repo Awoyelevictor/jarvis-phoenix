@@ -1,8 +1,11 @@
 """Lightweight cross-platform browser UI and local API for ULTRON."""
 from __future__ import annotations
 
+import base64
+import hmac
 import json
 import mimetypes
+import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -22,6 +25,26 @@ def make_handler(assistant: Assistant):
 
     class UltronHandler(BaseHTTPRequestHandler):
         server_version = "ULTRON/0.3"
+
+        def _authorize(self) -> bool:
+            username = os.getenv("ULTRON_ACCESS_USERNAME", "").strip()
+            password = os.getenv("ULTRON_ACCESS_PASSWORD", "")
+            if not username and not password and os.getenv("RENDER") != "true":
+                return True
+            if not username or not password:
+                self._send(503, b"ULTRON access credentials are not configured.", "text/plain; charset=utf-8")
+                return False
+            expected = "Basic " + base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")
+            supplied = self.headers.get("Authorization", "")
+            if not hmac.compare_digest(supplied, expected):
+                self.send_response(401)
+                self.send_header("WWW-Authenticate", 'Basic realm="ULTRON", charset="UTF-8"')
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(b"Authentication required.")
+                return False
+            return True
 
         def _send(self, status: int, payload: bytes, content_type: str, cache_control: str = "no-store") -> None:
             self.send_response(status)
@@ -46,6 +69,11 @@ def make_handler(assistant: Assistant):
 
         def do_GET(self) -> None:
             route = urlparse(self.path).path
+            if route == "/healthz":
+                self._json(200, {"ok": True, "service": "ULTRON"})
+                return
+            if not self._authorize():
+                return
             if route == "/api/status":
                 # Keep startup status local and fast. Ollama is optional and
                 # is checked only if the user needs the local fallback.
@@ -124,6 +152,8 @@ def make_handler(assistant: Assistant):
             self._send(200, target.read_bytes(), f"{content_type}; charset=utf-8", "no-cache" if target.name == "index.html" else "public, max-age=3600")
 
         def do_POST(self) -> None:
+            if not self._authorize():
+                return
             route = urlparse(self.path).path
             try:
                 body = self._read_json()
@@ -225,6 +255,8 @@ def make_handler(assistant: Assistant):
             self._json(404, {"error": "Not found"})
 
         def do_DELETE(self) -> None:
+            if not self._authorize():
+                return
             route = urlparse(self.path).path
             if route != "/api/memory":
                 self._json(404, {"error": "Not found"})
