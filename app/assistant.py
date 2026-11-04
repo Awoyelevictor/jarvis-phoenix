@@ -123,6 +123,52 @@ class Assistant:
             + " | ".join(failures)
         )
 
+    def respond_stream(self, prompt: str):
+        """Yield answer fragments and commit the completed turn to conversation history."""
+        prompt = prompt.strip()
+        if not prompt:
+            raise ValueError("Prompt cannot be empty.")
+
+        save_notice = self._remember_explicit_request(prompt)
+        pending = [self._system_message(), *self.messages, {"role": "user", "content": prompt}]
+        failures = []
+        fragments = []
+
+        if self.cloud.configured:
+            try:
+                for fragment in self.cloud.stream_chat(pending):
+                    if not fragment:
+                        continue
+                    if not fragments and save_notice:
+                        fragments.append(save_notice + " ")
+                        yield save_notice + " "
+                    fragments.append(fragment)
+                    yield fragment
+            except ProviderError as exc:
+                if fragments:
+                    # Once bytes have reached the client, switching providers
+                    # would splice two answers together and hide a partial failure.
+                    raise
+                failures.append(f"cloud: {exc}")
+
+        if not fragments:
+            try:
+                answer = self.local.chat(pending)
+                if save_notice:
+                    answer = save_notice + " " + answer
+                fragments.append(answer)
+                yield answer
+            except ProviderError as exc:
+                failures.append(f"local: {exc}")
+                raise ProviderError(
+                    "No AI provider responded. Check your configured cloud API key/model, "
+                    "or start Ollama with the configured local model. Details: "
+                    + " | ".join(failures)
+                ) from exc
+
+        answer = "".join(fragments).strip()
+        self._remember([*pending[1:], {"role": "assistant", "content": answer}])
+
     def check_providers(self) -> list[tuple[str, bool, str]]:
         local_detail = self.local.check()
         local_ok = "is available." in local_detail

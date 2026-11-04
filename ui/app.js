@@ -268,12 +268,42 @@ async function sendChatMessage(text, fromVoice = false) {
       method: "POST", headers: {"Content-Type":"application/json"},
       body: JSON.stringify({prompt})
     });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "AI request failed.");
-    const reply = data.reply || "I don't have a response for that.";
-    pending.paragraph.textContent = reply;
+    if (!response.ok) {
+      let message = "AI request failed.";
+      try { message = (await response.json()).error || message; } catch {}
+      throw new Error(message);
+    }
+    if (!response.body?.getReader) throw new Error("This browser cannot read the live response stream. Reload ULTRON and try again.");
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let reply = "";
+    let streamDone = false;
+    pending.paragraph.textContent = "";
+    while (!streamDone) {
+      const {value, done} = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, {stream:true});
+      const events = buffer.split(/\r?\n\r?\n/);
+      buffer = events.pop() || "";
+      for (const eventText of events) {
+        const line = eventText.split(/\r?\n/).find(item => item.startsWith("data:"));
+        if (!line) continue;
+        let event;
+        try { event = JSON.parse(line.slice(5).trim()); } catch { continue; }
+        if (event.error) throw new Error(event.error);
+        if (typeof event.delta === "string") {
+          reply += event.delta;
+          pending.paragraph.textContent = reply;
+          const feed = $("chat-feed");
+          feed.scrollTop = feed.scrollHeight;
+        }
+        if (event.done) streamDone = true;
+      }
+    }
+    if (!reply.trim()) throw new Error("ULTRON ended the stream without a response.");
     pending.article.classList.remove("pending");
-    logEvent("Response generated successfully");
+    logEvent("Response stream completed");
     if (fromVoice && sessionActive) await speak(reply);
     else if (sessionActive && !playbackSource) setMode("listening", "LISTENING", "I'm listening. You can interrupt me at any time.");
     else if (!sessionActive) setMode("standby", "SYSTEM STANDBY", "Text channel active. Activate voice whenever you're ready.");
