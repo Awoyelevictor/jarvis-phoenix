@@ -72,7 +72,10 @@ def make_handler(assistant: Assistant):
                     "tts_model": assistant.settings.tts_model,
                     "tts_voice": assistant.settings.tts_voice,
                     "voice_ready": bool(
-                        assistant.settings.tts_api_key
+                        (assistant.settings.use_qwen_tts
+                         and assistant.settings.voice_api_url
+                         and assistant.settings.voice_api_key)
+                        or assistant.settings.tts_api_key
                         or ("generativelanguage.googleapis.com" in assistant.settings.cloud_base_url
                             and assistant.settings.cloud_api_key)
                     ),
