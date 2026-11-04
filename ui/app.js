@@ -24,7 +24,85 @@ let vadFrame = 0;
 let vadSpeechStarted = false;
 let vadSilenceAt = 0;
 let vadSegmentStartedAt = 0;
+let latestSystemError = null;
+let latestSystemStatus = null;
 
+function describeFailure(message) {
+  const value = String(message || "Unknown system error");
+  if (/429|quota|rate.?limit|too many requests|billing|credit/i.test(value)) return {source:"AI provider / API quota",cause:"The provider may have reached its request limit, daily quota, or billing allowance.",action:"Check the provider's usage and quota, then retry after the limit resets."};
+  if (/401|unauthori[sz]ed|invalid.*key|api.?key/i.test(value)) return {source:"API authentication",cause:"The API key may be missing, invalid, or not accepted by the selected provider.",action:"Check the relevant API key in the Termux session that starts ULTRON. Never share the key."};
+  if (/403|forbidden|permission/i.test(value)) return {source:"Provider access / permissions",cause:"The service refused access, or a required browser permission was denied.",action:"Check API access and Android/Chrome microphone permissions."};
+  if (/network|fetch|failed to fetch|connection|timeout|offline|502|503|504/i.test(value)) return {source:"Network / cloud connection",cause:"ULTRON could not complete a request to the local server or cloud provider.",action:"Check your internet connection and confirm the ULTRON Termux server is still running."};
+  if (/microphone|speech recognition|recording|audio input|notallowed|notfound/i.test(value)) return {source:"Microphone / audio input",cause:"The browser could not start or access microphone input.",action:"Allow microphone access for Chrome and ULTRON, then reload the page."};
+  if (/voice|speech|tts|audio|gemini/i.test(value)) return {source:"Voice generation (TTS)",cause:"The speech provider failed to generate or decode audio.",action:"Check the Gemini TTS key, model availability, network, and quota. Chat may still work without voice."};
+  return {source:"ULTRON application",cause:"The application reported an error. The original message is shown below.",action:"Use the details here and the Termux log to identify the failing component."};
+}
+function recordSystemError(message, component = "ULTRON") {
+  const detail = describeFailure(message);
+  latestSystemError = {message:String(message || "Unknown error"),component, ...detail, time:new Date().toLocaleString()};
+  const indicator = $("ultron-live-indicator");
+  if (indicator) indicator.dataset.state = "error";
+}
+function ensureDiagnosticsPanel() {
+  if ($("ultron-diagnostics")) return $("ultron-diagnostics");
+  const style = document.createElement("style");
+  style.textContent = `
+    #ultron-live-indicator{pointer-events:auto;cursor:pointer}
+    #ultron-live-indicator:focus-visible{outline:2px solid #ff796b;outline-offset:4px}
+    #ultron-diagnostics{position:fixed;z-index:160;top:62px;right:18px;width:min(390px,calc(100vw - 28px));max-height:min(72dvh,620px);overflow:auto;padding:16px;background:rgba(7,8,12,.97);border:1px solid rgba(255,65,45,.72);box-shadow:0 14px 42px rgba(0,0,0,.65),0 0 28px rgba(255,35,20,.2);backdrop-filter:blur(18px);color:#e8edf2;font-family:'Rajdhani',sans-serif;display:none}
+    #ultron-diagnostics.open{display:block}
+    #ultron-diagnostics .diag-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    #ultron-diagnostics .diag-title{font:12px 'Orbitron',sans-serif;letter-spacing:.12em;color:#ff715d}
+    #ultron-diagnostics .diag-close{background:transparent;border:1px solid #555;color:#eee;padding:3px 8px}
+    #ultron-diagnostics .diag-row{padding:9px 0;border-top:1px solid rgba(255,255,255,.09)}
+    #ultron-diagnostics .diag-label{font:10px 'Share Tech Mono',monospace;letter-spacing:.12em;color:#ff9b8d;margin-bottom:4px}
+    #ultron-diagnostics .diag-value{font-size:14px;line-height:1.35;overflow-wrap:anywhere;color:#e8edf2;white-space:pre-wrap}
+    #ultron-diagnostics .diag-muted{color:#aab5c2}
+    @media(max-width:768px){#ultron-diagnostics{top:54px;right:12px}}
+  `;
+  document.head.append(style);
+  const panel = document.createElement("aside");
+  panel.id = "ultron-diagnostics";
+  panel.setAttribute("role","dialog");
+  panel.setAttribute("aria-label","System diagnostics");
+  panel.innerHTML = '<div class="diag-head"><div class="diag-title">ULTRON // DIAGNOSTICS</div><button class="diag-close" type="button" aria-label="Close diagnostics">×</button></div><div id="ultron-diagnostics-content"></div>';
+  document.body.append(panel);
+  panel.querySelector(".diag-close").addEventListener("click",()=>panel.classList.remove("open"));
+  document.addEventListener("keydown",event=>{if(event.key==="Escape")panel.classList.remove("open")});
+  return panel;
+}
+function openDiagnostics() {
+  const panel = ensureDiagnosticsPanel();
+  const content = $("ultron-diagnostics-content");
+  const status = latestSystemStatus || {};
+  const cloud = (status.providers || []).find(item => String(item.name).toLowerCase().includes("cloud"));
+  const rows = [];
+  const add = (label,value,muted=false) => rows.push({label,value:value || "Not available",muted});
+  add("OVERALL STATE",document.body.dataset.mode === "error" ? "ERROR — attention required" : "Live status details");
+  if (latestSystemError) {
+    add("LATEST ERROR",latestSystemError.message);
+    add("COMPONENT",latestSystemError.component);
+    add("LIKELY CAUSE",latestSystemError.cause);
+    add("RECOMMENDED ACTION",latestSystemError.action);
+    add("OCCURRED",latestSystemError.time,true);
+  } else {
+    add("LATEST ERROR","No error has been recorded in this session.",true);
+  }
+  add("CLOUD AI",cloud ? (cloud.ready ? "Configured" : "Not configured") + " — " + cloud.detail : "Status not returned");
+  add("VOICE / TTS",status.voice_ready ? (status.voice_provider || "Configured") + " — " + (status.tts_model || "model not reported") + " / " + (status.tts_voice || "voice not reported") : "Not configured or unavailable");
+  add("LOCAL MEMORY",status.local_memory ? "Active" : "Unavailable");
+  add("CLOUD MEMORY",status.cloud_memory ? "Configured" : "Not configured (local memory remains available)");
+  add("MICROPHONE",sessionActive ? (recorderFallback ? "Active — direct recording fallback" : "Voice session active") : "Not currently active");
+  add("SERVER", "Local ULTRON API: " + location.origin);
+  content.replaceChildren();
+  for (const row of rows) {
+    const wrap=document.createElement("div");wrap.className="diag-row";
+    const label=document.createElement("div");label.className="diag-label";label.textContent=row.label;
+    const value=document.createElement("div");value.className="diag-value"+(row.muted?" diag-muted":"");value.textContent=row.value;
+    wrap.append(label,value);content.append(wrap);
+  }
+  panel.classList.add("open");
+}
 function showAlert(title, message, kind = "error") {
   const card = $("ultron-alert");
   if (!card) return;
@@ -36,6 +114,7 @@ function showAlert(title, message, kind = "error") {
   showAlert.timer = setTimeout(() => card.classList.remove("show"), 7200);
 }
 function toast(message) {
+  recordSystemError(message, /microphone|speech recognition|recording/i.test(String(message)) ? "Microphone" : /voice|speech|tts|audio/i.test(String(message)) ? "Voice / TTS" : "Chat / system");
   const el = $("toast");
   if (el) {
     el.textContent = message;
@@ -67,7 +146,8 @@ function setMode(mode, label, hint) {
     const active = mode === "thinking" || mode === "connecting" || mode === "speaking" || mode === "error";
     indicator.dataset.state = mode === "connecting" ? "thinking" : mode;
     indicator.classList.toggle("visible", active);
-    $("ultron-live-label").textContent = mode === "speaking" ? "ULTRON SPEAKING" : mode === "error" ? "SYSTEM ERROR" : "THINKING";
+    $("ultron-live-label").textContent = mode === "speaking" ? "ULTRON SPEAKING" : mode === "error" ? "SYSTEM ERROR" : mode === "connecting" ? "CONNECTING" : mode === "thinking" ? "THINKING" : mode.toUpperCase();
+    indicator.setAttribute("role","button"); indicator.setAttribute("tabindex","0"); indicator.setAttribute("aria-label","Open ULTRON system diagnostics");
   }
   $("voice-state").textContent = label;
   $("voice-hint").textContent = hint;
@@ -528,6 +608,7 @@ async function loadStatus() {
     const response = await fetch("/api/status", {cache:"no-store"});
     if (!response.ok) throw new Error("Status unavailable");
     const data = await response.json();
+    latestSystemStatus = data;
     const cloud = (data.providers || []).find(item => item.name.toLowerCase().includes("cloud"));
     const localMemory = data.local_memory === true;
     setMetric("cloud-status", "cloud-bar", cloud?.ready, cloud?.ready ? "ONLINE" : "OFFLINE");
@@ -540,9 +621,10 @@ async function loadStatus() {
     logEvent(cloud?.ready ? "Cloud intelligence configured" : "Cloud intelligence unavailable");
     logEvent(data.voice_ready ? "Gemini voice configured" : "Voice provider unavailable");
     if (!cloud?.ready) $("overall-detail").textContent = "Cloud provider needs attention";
-  } catch {
+  } catch (error) {
+    recordSystemError(error.message || "Unable to retrieve system status", "Status API");
     ["cloud-status","voice-status","memory-status"].forEach(id => $(id).textContent = "UNKNOWN");
-    logEvent("Unable to retrieve system status");
+    logEvent("Unable to retrieve system status: " + (error.message || "unknown error"));
   }
 }
 function setMetric(labelId, barId, ready, label) {
@@ -564,6 +646,8 @@ async function resetConversation() {
   } catch (error) { toast(error.message); }
 }
 $("ultron-alert-close")?.addEventListener("click", () => $("ultron-alert")?.classList.remove("show"));
+$("ultron-live-indicator")?.addEventListener("click", openDiagnostics);
+$("ultron-live-indicator")?.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openDiagnostics(); } });
 $("robotHeadWrapper")?.addEventListener("click",toggleHeadVoice);
 $("mic-button")?.addEventListener("click",toggleHeadVoice);
 $("stop-button").addEventListener("click", stopSession);
