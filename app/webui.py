@@ -67,6 +67,13 @@ def make_handler(assistant: Assistant):
                 raise ValueError("Request is empty or too large.")
             return json.loads(self.rfile.read(length).decode("utf-8"))
 
+        def do_HEAD(self) -> None:
+            # Render's default health probe uses HEAD /. Return no page content.
+            self.send_response(200)
+            self.send_header("Content-Length", "0")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+
         def do_GET(self) -> None:
             route = urlparse(self.path).path
             if route == "/healthz":
