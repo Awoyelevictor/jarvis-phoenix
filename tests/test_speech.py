@@ -62,3 +62,69 @@ def test_gemini_speech_requires_api_key():
         assert "API key" in str(exc)
     else:
         raise AssertionError("Expected ProviderError")
+
+
+
+class FakeBinaryResponse(FakeResponse):
+    def __init__(self, payload):
+        self.payload = payload
+
+    def read(self):
+        return self.payload
+
+
+def test_qwen_speech_returns_wav_from_voice_api(monkeypatch):
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        captured["authorization"] = request.get_header("Authorization")
+        return FakeBinaryResponse(b"RIFF" + b"test-wav-data")
+
+    monkeypatch.setattr("app.speech.urlopen", fake_urlopen)
+    settings = Settings(
+        use_qwen_tts=True,
+        voice_api_url="https://voice.example",
+        voice_api_key="private-test-key",
+    )
+    audio, mime_type = GeminiSpeechProvider(settings).synthesize("Systems online.")
+
+    import base64
+    assert base64.b64decode(audio) == b"RIFFtest-wav-data"
+    assert mime_type == "audio/wav"
+    assert captured["url"] == "https://voice.example/v1/audio/speech"
+    assert captured["payload"] == {"text": "Systems online.", "language": "English"}
+    assert captured["authorization"] == "Bearer private-test-key"
+
+
+def test_qwen_failure_falls_back_to_gemini(monkeypatch):
+    calls = {"count": 0}
+
+    def fake_urlopen(request, timeout):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            from urllib.error import URLError
+            raise URLError("GPU endpoint unavailable")
+        return FakeResponse({
+            "candidates": [{
+                "content": {
+                    "parts": [{
+                        "inlineData": {"mimeType": "audio/wav", "data": "UklGRg=="}
+                    }]
+                }
+            }]
+        })
+
+    monkeypatch.setattr("app.speech.urlopen", fake_urlopen)
+    settings = Settings(
+        tts_api_key="gemini-test-key",
+        use_qwen_tts=True,
+        voice_api_url="https://voice.example",
+        voice_api_key="qwen-test-key",
+    )
+    audio, mime_type = GeminiSpeechProvider(settings).synthesize("Fallback test.")
+
+    assert calls["count"] == 2
+    assert audio == "UklGRg=="
+    assert mime_type == "audio/wav"
