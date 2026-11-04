@@ -182,12 +182,30 @@ def make_handler(assistant: Assistant):
                 if not isinstance(prompt, str) or not prompt.strip():
                     self._json(400, {"error": "Enter a message first."})
                     return
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+                self.send_header("Cache-Control", "no-cache, no-transform")
+                self.send_header("Connection", "keep-alive")
+                self.send_header("X-Accel-Buffering", "no")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.end_headers()
                 try:
-                    answer = assistant.respond(prompt)
-                    self._json(200, {"reply": answer})
+                    for fragment in assistant.respond_stream(prompt):
+                        event = json.dumps({"delta": fragment}, ensure_ascii=False)
+                        self.wfile.write(f"data: {event}\\n\\n".encode("utf-8"))
+                        self.wfile.flush()
+                    self.wfile.write(b"data: {\"done\":true}\\n\\n")
+                    self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                    print("[ULTRON] Chat stream client disconnected.", flush=True)
                 except Exception as exc:
-                    print(f"[ULTRON] Chat provider failed: {type(exc).__name__}: {exc}", flush=True)
-                    self._json(502, {"error": str(exc)})
+                    print(f"[ULTRON] Chat stream failed: {type(exc).__name__}: {exc}", flush=True)
+                    try:
+                        event = json.dumps({"error": str(exc)}, ensure_ascii=False)
+                        self.wfile.write(f"data: {event}\\n\\n".encode("utf-8"))
+                        self.wfile.flush()
+                    except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                        pass
                 return
 
             self._json(404, {"error": "Not found"})
