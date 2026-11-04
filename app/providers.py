@@ -127,3 +127,50 @@ class OpenAICompatibleProvider:
         if not isinstance(content, str) or not content.strip():
             raise ProviderError("Cloud endpoint returned an empty or invalid response.")
         return content.strip()
+
+
+    def stream_chat(self, messages: list[dict[str, str]]):
+        """Yield OpenAI-compatible content deltas as they arrive from the provider."""
+        if not self.configured:
+            raise ProviderError("Cloud provider is not fully configured.")
+        base = self.settings.cloud_base_url.rstrip("/")
+        url = base if base.endswith("/chat/completions") else f"{base}/chat/completions"
+        payload = {
+            "model": self.settings.cloud_model,
+            "messages": messages,
+            "stream": True,
+        }
+        request = Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.settings.cloud_api_key}",
+                "Accept": "text/event-stream",
+            },
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=self.settings.request_timeout) as response:
+                for raw_line in response:
+                    line = raw_line.decode("utf-8", errors="replace").strip()
+                    if not line or line.startswith(":"):
+                        continue
+                    if line.startswith("data:"):
+                        data = line[5:].strip()
+                        if data == "[DONE]":
+                            return
+                        try:
+                            event = json.loads(data)
+                        except json.JSONDecodeError:
+                            continue
+                        choices = event.get("choices", [])
+                        if not isinstance(choices, list) or not choices:
+                            continue
+                        choice = choices[0]
+                        delta = choice.get("delta", {}) if isinstance(choice, dict) else {}
+                        content = delta.get("content") if isinstance(delta, dict) else None
+                        if isinstance(content, str) and content:
+                            yield content
+        except (HTTPError, URLError, TimeoutError, OSError) as exc:
+            raise ProviderError(str(exc)) from exc
