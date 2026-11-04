@@ -128,3 +128,26 @@ def test_qwen_failure_falls_back_to_gemini(monkeypatch):
     assert calls["count"] == 2
     assert audio == "UklGRg=="
     assert mime_type == "audio/wav"
+
+
+
+def test_qwen_speech_supports_custom_colab_route(monkeypatch):
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        return FakeBinaryResponse(b"RIFF" + b"colab-wav")
+
+    monkeypatch.setattr("app.speech.urlopen", fake_urlopen)
+    settings = Settings(
+        use_qwen_tts=True,
+        voice_api_url="https://voice-tunnel.example",
+        voice_api_path="/synthesize",
+        voice_api_key="private-test-key",
+    )
+    audio, mime_type = GeminiSpeechProvider(settings).synthesize("Systems online.")
+
+    import base64
+    assert captured["url"] == "https://voice-tunnel.example/synthesize"
+    assert base64.b64decode(audio) == b"RIFFcolab-wav"
+    assert mime_type == "audio/wav"
