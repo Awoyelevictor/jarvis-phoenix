@@ -41,6 +41,49 @@ class GeminiSpeechProvider:
             raise ProviderError(result.get("error",{}).get("message","Gemini returned no transcript.")) from exc
 
     def synthesize(self, text: str) -> tuple[str, str]:
+        text = text.strip()
+        if not text:
+            raise ProviderError("There is no response to speak.")
+
+        if (self.settings.use_qwen_tts and self.settings.voice_api_url
+                and self.settings.voice_api_key):
+            try:
+                return self._synthesize_qwen(text)
+            except ProviderError:
+                # Keep speech available if the remote GPU is cold or unavailable.
+                pass
+
+        return self._synthesize_gemini(text)
+
+    def _synthesize_qwen(self, text: str) -> tuple[str, str]:
+        base_url = self.settings.voice_api_url.rstrip("/")
+        api_path = (self.settings.voice_api_path or "/v1/audio/speech").strip()
+        if not api_path.startswith("/"):
+            api_path = "/" + api_path
+        endpoint = base_url if base_url.endswith(api_path) else f"{base_url}{api_path}"
+        request = Request(
+            endpoint,
+            data=json.dumps({"text": text, "language": "English"}).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "audio/wav",
+                "Authorization": f"Bearer {self.settings.voice_api_key}",
+            },
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=self.settings.request_timeout) as response:
+                audio_bytes = response.read()
+        except HTTPError as exc:
+            raise ProviderError(f"Qwen voice API returned HTTP {exc.code}.") from exc
+        except (URLError, TimeoutError, OSError) as exc:
+            raise ProviderError("Qwen voice API connection failed.") from exc
+
+        if not audio_bytes or not audio_bytes.startswith(b"RIFF"):
+            raise ProviderError("Qwen voice API did not return a valid WAV file.")
+        return base64.b64encode(audio_bytes).decode("ascii"), "audio/wav"
+
+    def _synthesize_gemini(self, text: str) -> tuple[str, str]:
         api_key = self.settings.tts_api_key
         # Preserve compatibility for direct Gemini-only Settings instances.
         if not api_key and "generativelanguage.googleapis.com" in self.settings.cloud_base_url:

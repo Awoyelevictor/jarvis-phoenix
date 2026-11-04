@@ -71,8 +71,22 @@ def make_handler(assistant: Assistant):
                     "cloud_model": assistant.settings.cloud_model,
                     "tts_model": assistant.settings.tts_model,
                     "tts_voice": assistant.settings.tts_voice,
+                    "voice_provider": (
+                        "Qwen3-TTS"
+                        if (assistant.settings.use_qwen_tts
+                            and assistant.settings.voice_api_url
+                            and assistant.settings.voice_api_key)
+                        else "Gemini TTS"
+                        if (assistant.settings.tts_api_key
+                            or ("generativelanguage.googleapis.com" in assistant.settings.cloud_base_url
+                                and assistant.settings.cloud_api_key))
+                        else "Not configured"
+                    ),
                     "voice_ready": bool(
-                        assistant.settings.tts_api_key
+                        (assistant.settings.use_qwen_tts
+                         and assistant.settings.voice_api_url
+                         and assistant.settings.voice_api_key)
+                        or assistant.settings.tts_api_key
                         or ("generativelanguage.googleapis.com" in assistant.settings.cloud_base_url
                             and assistant.settings.cloud_api_key)
                     ),
@@ -173,7 +187,7 @@ def make_handler(assistant: Assistant):
                     audio, mime_type = speech.synthesize(text)
                     self._json(200, {"audio": audio, "mime_type": mime_type})
                 except ProviderError as exc:
-                    print(f"[ULTRON] Gemini voice provider failed: {exc}", flush=True)
+                    print(f"[ULTRON] Speech provider failed: {exc}", flush=True)
                     self._json(502, {"error": str(exc)})
                 return
 

@@ -169,6 +169,10 @@ On Android/Termux, Ollama is not assumed to be installed or available. You can u
 | `PHOENIX_TTS_MODEL` | TTS model (default: `gemini-3.8-flash-tts`) |
 | `PHOENIX_TTS_VOICE` | Gemini prebuilt voice (default: `Algenib`) |
 | `PHOENIX_TTS_STYLE` | Natural-language voice direction |
+| `USE_QWEN_TTS` | Enable the remote Qwen3-TTS voice engine (`true`/`false`) |
+| `ULTRON_VOICE_API_URL` | Base HTTPS URL of the Qwen voice API (keep credentials out of the URL) |
+| `ULTRON_VOICE_API_PATH` | Speech route; use `/synthesize` for the Colab wrapper or `/v1/audio/speech` for ULTRON-VOICE-ENGINE |
+| `ULTRON_VOICE_API_KEY` | Private bearer token accepted by the Qwen voice API |
 | `PHOENIX_LOCAL_BASE_URL` | Ollama endpoint |
 | `PHOENIX_LOCAL_MODEL` | Ollama model name |
 | `PHOENIX_REQUEST_TIMEOUT` | Provider request timeout in seconds |
@@ -229,3 +233,12 @@ Issues and pull requests are welcome. Please:
 ## Upstream acknowledgement
 
 This project builds on [huwprosser/jarvis-mlx](https://github.com/huwprosser/jarvis-mlx). Check the upstream repository's license and preserve all required notices before redistributing or relicensing inherited code.
+
+
+### Qwen3-TTS voice engine
+
+The Qwen adapter is server-side. The browser continues to call the existing `/api/voice` route; the Python backend forwards speech requests to Qwen and returns WAV audio in the existing response format. Gemini remains the fallback for speech generation, and Gemini transcription remains unchanged.
+
+For a Colab-hosted API, set `ULTRON_VOICE_API_URL` to the current Ngrok HTTPS host, `ULTRON_VOICE_API_PATH=/synthesize`, `ULTRON_VOICE_API_KEY` to the same private bearer key configured by the Colab server, and `USE_QWEN_TTS=true`. For the standalone ULTRON Voice Engine API, use `ULTRON_VOICE_API_PATH=/v1/audio/speech`.
+
+Colab runtimes and Ngrok URLs are temporary: when the runtime stops or the tunnel URL changes, update the backend environment. Never commit real API keys or Ngrok tokens. Qwen speech synthesis currently returns a complete WAV response; this does not change the separate SSE streaming behaviour of ULTRON chat.
