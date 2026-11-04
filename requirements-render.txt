@@ -1,0 +1,2 @@
+# Render deployment uses the Python standard library only.
+# Keep device-specific MLX, Torch, and audio packages out of the cloud build.
