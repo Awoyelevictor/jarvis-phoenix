@@ -284,10 +284,10 @@ async function sendChatMessage(text, fromVoice = false) {
       const {value, done} = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, {stream:true});
-      const events = buffer.split(/\\r?\\n\\r?\\n/);
+      const events = buffer.split(/\r?\n\r?\n/);
       buffer = events.pop() || "";
       for (const eventText of events) {
-        const line = eventText.split(/\\r?\\n/).find(item => item.startsWith("data:"));
+        const line = eventText.split(/\r?\n/).find(item => item.startsWith("data:"));
         if (!line) continue;
         let event;
         try { event = JSON.parse(line.slice(5).trim()); } catch { continue; }
