@@ -24,6 +24,9 @@ class Settings:
     tts_model: str = DEFAULT_TTS_MODEL
     tts_voice: str = "Algenib"
     tts_style: str = DEFAULT_TTS_STYLE
+    voice_api_url: str = ""
+    voice_api_key: str = ""
+    use_qwen_tts: bool = False
     request_timeout: float = 90.0
     conversation_history_messages: int = 20
     memory_db_path: str = ""
@@ -51,6 +54,9 @@ class Settings:
             tts_model=os.getenv("PHOENIX_TTS_MODEL", DEFAULT_TTS_MODEL),
             tts_voice=os.getenv("PHOENIX_TTS_VOICE", "Algenib"),
             tts_style=os.getenv("PHOENIX_TTS_STYLE", DEFAULT_TTS_STYLE),
+            voice_api_url=os.getenv("ULTRON_VOICE_API_URL", "").rstrip("/"),
+            voice_api_key=os.getenv("ULTRON_VOICE_API_KEY", ""),
+            use_qwen_tts=os.getenv("USE_QWEN_TTS", "false").strip().lower() in {"1", "true", "yes", "on"},
             request_timeout=float(os.getenv("PHOENIX_REQUEST_TIMEOUT", "90")),
             conversation_history_messages=max(2, int(os.getenv("PHOENIX_HISTORY_MESSAGES", "20"))),
             memory_db_path=os.getenv("ULTRON_MEMORY_DB", ""),
