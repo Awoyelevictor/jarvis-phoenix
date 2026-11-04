@@ -114,7 +114,8 @@ function showAlert(title, message, kind = "error") {
   showAlert.timer = setTimeout(() => card.classList.remove("show"), 7200);
 }
 function toast(message) {
-  recordSystemError(message, /microphone|speech recognition|recording/i.test(String(message)) ? "Microphone" : /voice|speech|tts|audio/i.test(String(message)) ? "Voice / TTS" : "Chat / system");
+  const informational = /^(using direct microphone mode|conversation reset\.)/i.test(String(message || "").trim());
+  if (!informational) recordSystemError(message, /microphone|speech recognition|recording/i.test(String(message)) ? "Microphone" : /voice|speech|tts|audio/i.test(String(message)) ? "Voice / TTS" : "Chat / system");
   const el = $("toast");
   if (el) {
     el.textContent = message;
