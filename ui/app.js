@@ -481,6 +481,34 @@ async function speak(text) {
   speechStarted = true;
   animateAudio();
   } catch (error) {
+    if (!speechStarted && window.speechSynthesis && window.SpeechSynthesisUtterance && sessionActive) {
+      // Last-resort device voice keeps ULTRON audible when cloud TTS is down.
+      try {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 0.92;
+        utterance.pitch = 0.78;
+        utterance.onstart = () => {
+          setMode("speaking", "ULTRON IS SPEAKING", "Using the device voice while the cloud voice service is unavailable.");
+          $("control-caption").textContent = "DEVICE VOICE · MIC ACTIVE";
+        };
+        utterance.onend = () => {
+          activeSpeechText = "";
+          resumeMicrophoneAfterSpeech();
+          if (sessionActive && !busy) setMode("listening", "LISTENING", "I'm listening. Speak naturally.");
+        };
+        utterance.onerror = () => {
+          resumeMicrophoneAfterSpeech();
+          setMode("error", "VOICE OUTPUT ERROR", "Cloud and device speech are unavailable.");
+        };
+        activeSpeechText = text;
+        window.speechSynthesis.speak(utterance);
+        logEvent("Cloud TTS unavailable; using device speech synthesis.");
+        return;
+      } catch (fallbackError) {
+        logEvent("Device speech fallback failed: " + (fallbackError.message || "unknown error"));
+      }
+    }
     if (!speechStarted) resumeMicrophoneAfterSpeech();
     throw error;
   }
