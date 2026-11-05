@@ -45,8 +45,7 @@ class GeminiSpeechProvider:
         if not text:
             raise ProviderError("There is no response to speak.")
 
-        if (self.settings.use_qwen_tts and self.settings.voice_api_url
-                and self.settings.voice_api_key):
+        if self.settings.use_qwen_tts and self.settings.voice_api_url:
             try:
                 return self._synthesize_qwen(text)
             except ProviderError:
@@ -67,7 +66,8 @@ class GeminiSpeechProvider:
             headers={
                 "Content-Type": "application/json",
                 "Accept": "audio/wav",
-                "Authorization": f"Bearer {self.settings.voice_api_key}",
+                **({"Authorization": f"Bearer {self.settings.voice_api_key}"}
+                   if self.settings.voice_api_key else {}),
             },
             method="POST",
         )
