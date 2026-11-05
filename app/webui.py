@@ -6,6 +6,8 @@ import hmac
 import json
 import mimetypes
 import os
+import queue
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -238,20 +240,44 @@ def make_handler(assistant: Assistant):
                 self.send_header("X-Accel-Buffering", "no")
                 self.send_header("X-Content-Type-Options", "nosniff")
                 self.end_headers()
+                events: queue.Queue = queue.Queue()
+
+                def produce_response() -> None:
+                    try:
+                        for fragment in assistant.respond_stream(prompt):
+                            events.put(("delta", fragment))
+                        events.put(("done", None))
+                    except Exception as exc:
+                        events.put(("error", exc))
+
+                threading.Thread(target=produce_response, daemon=True).start()
                 try:
-                    for fragment in assistant.respond_stream(prompt):
-                        event = json.dumps({"delta": fragment}, ensure_ascii=False)
-                        self.wfile.write(f"data: {event}\n\n".encode("utf-8"))
-                        self.wfile.flush()
-                    self.wfile.write(b"data: {\"done\":true}\n\n")
-                    self.wfile.flush()
+                    while True:
+                        try:
+                            event_type, value = events.get(timeout=12)
+                        except queue.Empty:
+                            # Keep mobile browsers and intermediaries from timing out
+                            # while the AI provider is preparing its first token.
+                            self.wfile.write(b": keep-alive\\n\\n")
+                            self.wfile.flush()
+                            continue
+                        if event_type == "delta":
+                            event = json.dumps({"delta": value}, ensure_ascii=False)
+                            self.wfile.write(f"data: {event}\\n\\n".encode("utf-8"))
+                            self.wfile.flush()
+                        elif event_type == "done":
+                            self.wfile.write(b"data: {\"done\":true}\\n\\n")
+                            self.wfile.flush()
+                            break
+                        else:
+                            raise value
                 except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
                     print("[ULTRON] Chat stream client disconnected.", flush=True)
                 except Exception as exc:
                     print(f"[ULTRON] Chat stream failed: {type(exc).__name__}: {exc}", flush=True)
                     try:
                         event = json.dumps({"error": str(exc)}, ensure_ascii=False)
-                        self.wfile.write(f"data: {event}\n\n".encode("utf-8"))
+                        self.wfile.write(f"data: {event}\\n\\n".encode("utf-8"))
                         self.wfile.flush()
                     except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
                         pass
