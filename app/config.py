@@ -10,6 +10,7 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_GEMINI_MODEL = "gemini-3.8-flash"
 DEFAULT_OPENROUTER_MODEL = "openrouter/free"
 DEFAULT_TTS_MODEL = "gemini-3.8-flash-tts"
+DEFAULT_TRANSCRIPTION_MODEL = DEFAULT_GEMINI_MODEL
 DEFAULT_TTS_STYLE = "Speak in a deep, resonant masculine voice with a controlled, slightly gravelly rasp and a subtle metallic, synthetic edge. The voice should feel intelligent, composed, authoritative, and quietly intimidating, like a sophisticated machine speaking through a natural human voice. Use measured pacing, deliberate pauses, precise American English pronunciation, and steady low-register delivery. Keep the sound rich and grounded rather than exaggerated, harsh, shouted, or cartoonishly robotic. Preserve natural conversational flow while maintaining a cool, calculating confidence."
 
 
@@ -21,6 +22,7 @@ class Settings:
     cloud_api_key: str = ""
     cloud_model: str = DEFAULT_GEMINI_MODEL
     tts_api_key: str = ""
+    transcription_model: str = DEFAULT_TRANSCRIPTION_MODEL
     tts_model: str = DEFAULT_TTS_MODEL
     tts_voice: str = "Algenib"
     tts_style: str = DEFAULT_TTS_STYLE
@@ -52,10 +54,11 @@ class Settings:
                 DEFAULT_OPENROUTER_MODEL if "openrouter.ai" in cloud_base_url else DEFAULT_GEMINI_MODEL,
             ),
             tts_api_key=os.getenv("PHOENIX_TTS_API_KEY", "") or os.getenv("GEMINI_API_KEY", ""),
+            transcription_model=os.getenv("PHOENIX_TRANSCRIPTION_MODEL", DEFAULT_TRANSCRIPTION_MODEL).strip() or DEFAULT_TRANSCRIPTION_MODEL,
             tts_model=os.getenv("PHOENIX_TTS_MODEL", DEFAULT_TTS_MODEL),
             tts_voice=os.getenv("PHOENIX_TTS_VOICE", "Algenib"),
             tts_style=os.getenv("PHOENIX_TTS_STYLE", DEFAULT_TTS_STYLE),
-            voice_api_url=(os.getenv("TTS_API_URL", "") or os.getenv("ULTRON_VOICE_API_URL", "")).rstrip("/"),
+            voice_api_url=(os.getenv("ULTRON_VOICE_API_URL", "") or os.getenv("TTS_API_URL", "")).rstrip("/"),
             voice_api_key=os.getenv("ULTRON_VOICE_API_KEY", ""),
             voice_api_path=os.getenv("ULTRON_VOICE_API_PATH", "/synthesize" if os.getenv("TTS_API_URL") else "/v1/audio/speech").strip() or "/synthesize",
             use_qwen_tts=os.getenv("USE_QWEN_TTS", "false").strip().lower() in {"1", "true", "yes", "on"},
