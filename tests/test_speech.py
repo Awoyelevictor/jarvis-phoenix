@@ -151,3 +151,27 @@ def test_qwen_speech_supports_custom_colab_route(monkeypatch):
     assert captured["url"] == "https://voice-tunnel.example/synthesize"
     assert base64.b64decode(audio) == b"RIFFcolab-wav"
     assert mime_type == "audio/wav"
+
+
+
+def test_microphone_transcription_uses_configured_gemini_model(monkeypatch):
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        return FakeResponse({
+            "candidates": [{
+                "content": {"parts": [{"text": "Hello ULTRON"}]}
+            }]
+        })
+
+    monkeypatch.setattr("app.speech.urlopen", fake_urlopen)
+    provider = GeminiSpeechProvider(Settings(
+        tts_api_key="test-key",
+        transcription_model="gemini-3.8-flash",
+    ))
+    transcript = provider.transcribe("UklGRg==", "audio/webm")
+
+    assert transcript == "Hello ULTRON"
+    assert captured["url"].endswith("/models/gemini-3.8-flash:generateContent")
