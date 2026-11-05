@@ -386,8 +386,17 @@ async function sendChatMessage(text, fromVoice = false) {
     if (!reply.trim()) throw new Error("ULTRON ended the stream without a response.");
     pending.article.classList.remove("pending");
     logEvent("Response stream completed");
-    if (fromVoice && sessionActive) await speak(reply);
-    else if (sessionActive && !playbackSource) setMode("listening", "LISTENING", "I'm listening. You can interrupt me at any time.");
+    if (fromVoice && sessionActive) {
+      // Chat remains successful even if the independent speech provider fails.
+      try {
+        await speak(reply);
+      } catch (speechError) {
+        logEvent("Voice output failed: " + (speechError.message || "unknown error"));
+        toast("ULTRON replied in text, but voice output failed: " + (speechError.message || "Voice service unavailable."));
+        setMode("error", "VOICE OUTPUT ERROR", "Text response is available. Check the speech provider.");
+        resumeMicrophoneAfterSpeech();
+      }
+    } else if (sessionActive && !playbackSource) setMode("listening", "LISTENING", "I'm listening. You can interrupt me at any time.");
     else if (!sessionActive) setMode("standby", "SYSTEM STANDBY", "Text channel active. Activate voice whenever you're ready.");
   } catch (error) {
     pending.paragraph.textContent = "Request failed: " + error.message;
