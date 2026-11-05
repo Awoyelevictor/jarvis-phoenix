@@ -25,7 +25,8 @@ let vadSpeechStarted = false;
 let vadSilenceAt = 0;
 let vadSegmentStartedAt = 0;
 let latestSystemError = null;
-let latestSystemStatus = null;\nlet liveIndicatorDismissed = false;
+let latestSystemStatus = null;
+let liveIndicatorDismissed = false;
 
 function describeFailure(message) {
   const value = String(message || "Unknown system error");
@@ -646,7 +647,8 @@ async function resetConversation() {
     toast("Conversation reset. Saved memories were preserved.");
   } catch (error) { toast(error.message); }
 }
-$("ultron-alert-close")?.addEventListener("click", () => $("ultron-alert")?.classList.remove("show"));\n$("ultron-live-close")?.addEventListener("click", event => { event.stopPropagation(); liveIndicatorDismissed = true; $("ultron-live-indicator")?.classList.remove("visible"); });
+$("ultron-alert-close")?.addEventListener("click", () => $("ultron-alert")?.classList.remove("show"));
+$("ultron-live-close")?.addEventListener("click", event => { event.stopPropagation(); liveIndicatorDismissed = true; $("ultron-live-indicator")?.classList.remove("visible"); });
 $("ultron-live-indicator")?.addEventListener("click", openDiagnostics);
 $("ultron-live-indicator")?.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openDiagnostics(); } });
 $("robotHeadWrapper")?.addEventListener("click",toggleHeadVoice);
