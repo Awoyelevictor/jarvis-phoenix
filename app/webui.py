@@ -258,15 +258,15 @@ def make_handler(assistant: Assistant):
                         except queue.Empty:
                             # Keep mobile browsers and intermediaries from timing out
                             # while the AI provider is preparing its first token.
-                            self.wfile.write(b": keep-alive\\n\\n")
+                            self.wfile.write(b": keep-alive\n\n")
                             self.wfile.flush()
                             continue
                         if event_type == "delta":
                             event = json.dumps({"delta": value}, ensure_ascii=False)
-                            self.wfile.write(f"data: {event}\\n\\n".encode("utf-8"))
+                            self.wfile.write(f"data: {event}\n\n".encode("utf-8"))
                             self.wfile.flush()
                         elif event_type == "done":
-                            self.wfile.write(b"data: {\"done\":true}\\n\\n")
+                            self.wfile.write(b"data: {\"done\":true}\n\n")
                             self.wfile.flush()
                             break
                         else:
@@ -277,7 +277,7 @@ def make_handler(assistant: Assistant):
                     print(f"[ULTRON] Chat stream failed: {type(exc).__name__}: {exc}", flush=True)
                     try:
                         event = json.dumps({"error": str(exc)}, ensure_ascii=False)
-                        self.wfile.write(f"data: {event}\\n\\n".encode("utf-8"))
+                        self.wfile.write(f"data: {event}\n\n".encode("utf-8"))
                         self.wfile.flush()
                     except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
                         pass
