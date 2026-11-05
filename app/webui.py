@@ -109,8 +109,7 @@ def make_handler(assistant: Assistant):
                     "voice_provider": (
                         "Qwen3-TTS"
                         if (assistant.settings.use_qwen_tts
-                            and assistant.settings.voice_api_url
-                            and assistant.settings.voice_api_key)
+                            and assistant.settings.voice_api_url)
                         else "Gemini TTS"
                         if (assistant.settings.tts_api_key
                             or ("generativelanguage.googleapis.com" in assistant.settings.cloud_base_url
@@ -119,8 +118,7 @@ def make_handler(assistant: Assistant):
                     ),
                     "voice_ready": bool(
                         (assistant.settings.use_qwen_tts
-                         and assistant.settings.voice_api_url
-                         and assistant.settings.voice_api_key)
+                         and assistant.settings.voice_api_url)
                         or assistant.settings.tts_api_key
                         or ("generativelanguage.googleapis.com" in assistant.settings.cloud_base_url
                             and assistant.settings.cloud_api_key)
