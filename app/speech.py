@@ -88,7 +88,11 @@ class GeminiSpeechProvider:
             with urlopen(request, timeout=self.settings.request_timeout) as response:
                 audio_bytes = response.read()
         except HTTPError as exc:
-            raise ProviderError(f"Qwen voice API returned HTTP {exc.code}.") from exc
+            # Include the upstream response body to diagnose 403 tunnel/auth failures.
+            detail = exc.read().decode("utf-8", errors="replace").strip()
+            detail = " ".join(detail.split())[:500]
+            suffix = f" Response: {detail}" if detail else ""
+            raise ProviderError(f"Qwen voice API returned HTTP {exc.code}.{suffix}") from exc
         except (URLError, TimeoutError, OSError) as exc:
             raise ProviderError("Qwen voice API connection failed.") from exc
 
