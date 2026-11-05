@@ -79,6 +79,7 @@ class GeminiSpeechProvider:
             headers={
                 "Content-Type": "application/json",
                 "Accept": "audio/wav",
+                "Bypass-Tunnel-Reminder": "true",
                 **({"Authorization": f"Bearer {self.settings.voice_api_key}"}
                    if self.settings.voice_api_key else {}),
             },
