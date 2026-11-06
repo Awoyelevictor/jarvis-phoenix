@@ -9,7 +9,9 @@ GEMINI_OPENAI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/opena
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_GEMINI_MODEL = "gemini-3.8-flash"
 DEFAULT_OPENROUTER_MODEL = "openrouter/free"
-DEFAULT_TTS_MODEL = "gemini-3.8-flash-tts"\nDEFAULT_OPENROUTER_TTS_MODEL = "x-ai/grok-voice-tts-1.0"\nDEFAULT_OPENROUTER_TTS_VOICE = "rex"
+DEFAULT_TTS_MODEL = "gemini-3.8-flash-tts"
+DEFAULT_OPENROUTER_TTS_MODEL = "x-ai/grok-voice-tts-1.0"
+DEFAULT_OPENROUTER_TTS_VOICE = "rex"
 DEFAULT_TRANSCRIPTION_MODEL = DEFAULT_GEMINI_MODEL
 DEFAULT_TTS_STYLE = "Speak in a deep, resonant masculine voice with a controlled, slightly gravelly rasp and a subtle metallic, synthetic edge. The voice should feel intelligent, composed, authoritative, and quietly intimidating, like a sophisticated machine speaking through a natural human voice. Use measured pacing, deliberate pauses, precise American English pronunciation, and steady low-register delivery. Keep the sound rich and grounded rather than exaggerated, harsh, shouted, or cartoonishly robotic. Preserve natural conversational flow while maintaining a cool, calculating confidence."
 
