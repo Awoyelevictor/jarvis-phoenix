@@ -2,7 +2,7 @@
 
 **A cross-platform, voice-first personal AI assistant for Android phones and Windows/Linux/macOS computers.**
 
-ULTRON is the user-facing assistant built in this repository. It combines a browser-based voice interface, cloud AI chat, Gemini-generated speech, and private local memory. The project is open source so other developers can run it, inspect it, and contribute.
+ULTRON is the user-facing assistant built in this repository. It combines a browser-based voice interface, cloud AI chat, provider-generated speech, browser speech recognition, and private local memory. The project is open source so other developers can run it, inspect it, and contribute.
 
 > **Project status:** Active development. This is a Python server with a browser/PWA interface, not a native Android APK or Windows desktop installer yet. Some browser voice features vary by device and browser.
 
@@ -10,12 +10,12 @@ ULTRON is the user-facing assistant built in this repository. It combines a brow
 
 - Voice-first browser interface with a reactive ULTRON core.
 - Cloud chat through one configured OpenAI-compatible endpoint at a time (for example OpenRouter or Gemini).
-- Gemini TTS voice output with a configurable voice and speaking style.
+- OpenRouter Grok Voice TTS (`rex`) when OpenRouter is selected; Gemini TTS remains available for Gemini-only setups.\n- Browser-native continuous speech recognition with interruption support; no paid STT API request is used by the main voice path.
 - Local SQLite memory; optional, explicitly approved Supabase memory sync.
 - Session-based voice recognition and interruption where supported by the browser.
 - Runs locally on Android through Termux or on a computer with Python.
 
-**Provider routing note:** The current implementation uses the configured cloud provider first and optional Ollama as a local fallback. Automatic OpenRouter-to-Gemini cloud failover is not implemented yet. Gemini TTS is a separate service and has its own quota.
+**Provider routing note:** The current implementation uses the configured cloud provider first and optional Ollama as a local fallback. Automatic OpenRouter-to-Gemini cloud failover is not implemented yet. OpenRouter Grok Voice TTS uses the same OpenRouter API key as chat and is billed separately by character. Browser speech recognition avoids a separate paid transcription request; support depends on the browser.
 
 ## Quick start
 
@@ -24,7 +24,7 @@ You need:
 - Git
 - An internet connection
 - An OpenRouter API key or Gemini API key for cloud chat
-- A Gemini API key for Gemini voice output
+- For OpenRouter voice output, no additional key beyond `OPENROUTER_API_KEY`; for Gemini-only voice output, a Gemini API key
 
 The core application uses Python's standard library. You do not need to install the legacy MLX/Whisper/MeloTTS packages in `requirements.txt) to run the current ULTRON browser interface.
 
@@ -41,7 +41,7 @@ cd jarvis-phoenix
 
 Choose **one** chat provider.
 
-**Option A — OpenRouter chat + Gemini voice (recommended example):**
+**Option A — OpenRouter chat + Grok Voice TTS (recommended for the red ULTRON UI):**
 
 Linux, macOS, and Termux:
 ```bash
@@ -60,7 +60,7 @@ export PHOENIX_CLOUD_BASE_URL="https://generativelanguage.googleapis.com/v1beta/
 export PHOENIX_CLOUD_MODEL="gemini-3.8-flash"
 ```
 
-The same Gemini key can be used for Gemini chat and Gemini TTS. Chat and speech have separate model quotas and limits.
+The same OpenRouter key is used for chat and Grok TTS; TTS has separate usage billing. Browser speech recognition runs in the browser and does not call the paid transcription endpoint. For Gemini chat + Gemini TTS, the same Gemini key can be used for both.
 
 ### 3. Start ULTRON
 
@@ -117,7 +117,7 @@ To avoid re-entering keys every time you open Termux, you may add your export co
    ```
 3. Set your keys for the current PowerShell session (choose one chat provider):
    
-   OpenRouter + Gemini voice:
+   OpenRouter + Grok Voice TTS:
    ```powershell
    $env:OPENROUTER_API_KEY = "YOUR_OPENROUTER_API_KEY"
    $env:PHOENIX_CLOUD_BASE_URL = "https://openrouter.ai/api/v1"
@@ -166,9 +166,9 @@ On Android/Termux, Ollama is not assumed to be installed or available. You can u
 | `PHOENIX_CLOUD_BASE_URL` | Selected OpenAI-compatible chat endpoint |
 | `PHOENIX_CLOUD_MODEL` | Chat model name |
 | `PHOENIX_TTS_API_KEY` | Optional separate Gemini TTS key; defaults to `GEMINI_API_KEY` |
-| `PHOENIX_TTS_MODEL` | TTS model (default: `gemini-3.8-flash-tts`) |
-| `PHOENIX_TTS_VOICE` | Gemini prebuilt voice (default: `Algenib`) |
-| `PHOENIX_TTS_STYLE` | Natural-language voice direction |
+| `PHOENIX_TTS_MODEL` | TTS model (OpenRouter default: `x-ai/grok-voice-tts-1.0`; Gemini default: `gemini-3.8-flash-tts`) |
+| `PHOENIX_TTS_VOICE` | Voice ID (OpenRouter default: `rex`; Gemini default: `Algenib`) |
+| `PHOENIX_TTS_STYLE` | Natural-language Gemini voice direction |
 | `USE_QWEN_TTS` | Enable the remote Qwen3-TTS voice engine (`true`/`false`) |
 | `ULTRON_VOICE_API_URL` | Base HTTPS URL of the Qwen voice API (keep credentials out of the URL) |
 | `ULTRON_VOICE_API_PATH` | Speech route; use `/synthesize` for the Colab wrapper or `/v1/audio/speech` for ULTRON-VOICE-ENGINE |
