@@ -85,7 +85,7 @@ class GeminiSpeechProvider:
         voice = (self.settings.tts_voice or "rex").strip()
         payload = {
             "model": model,
-            "input": text.strip(),
+            "input": (f"[deep, low-pitched masculine voice; resonant chest tone; calm, deliberate pacing; crisp diction; controlled authority; subtle synthetic metallic edge] {text.strip()}"),
             "voice": voice,
             "response_format": "wav",
         }
