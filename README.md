@@ -10,7 +10,8 @@ ULTRON is the user-facing assistant built in this repository. It combines a brow
 
 - Voice-first browser interface with a reactive ULTRON core.
 - Cloud chat through one configured OpenAI-compatible endpoint at a time (for example OpenRouter or Gemini).
-- OpenRouter Grok Voice TTS (`rex`) when OpenRouter is selected; Gemini TTS remains available for Gemini-only setups.\n- Browser-native continuous speech recognition with interruption support; no paid STT API request is used by the main voice path.
+- OpenRouter Grok Voice TTS (`rex`) when OpenRouter is selected; Gemini TTS remains available for Gemini-only setups.
+- Browser-native continuous speech recognition with interruption support; no paid STT API request is used by the main voice path.
 - Local SQLite memory; optional, explicitly approved Supabase memory sync.
 - Session-based voice recognition and interruption where supported by the browser.
 - Runs locally on Android through Termux or on a computer with Python.
@@ -48,7 +49,9 @@ Linux, macOS, and Termux:
 export OPENROUTER_API_KEY="YOUR_OPENROUTER_API_KEY"
 export PHOENIX_CLOUD_BASE_URL="https://openrouter.ai/api/v1"
 export PHOENIX_CLOUD_MODEL="openrouter/free"
-export GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
+# Optional overrides; defaults are Grok Voice TTS with the rex voice
+export PHOENIX_TTS_MODEL="x-ai/grok-voice-tts-1.0"
+export PHOENIX_TTS_VOICE="rex"
 ```
 
 **Option B — Gemini chat + Gemini voice:**
@@ -122,7 +125,8 @@ To avoid re-entering keys every time you open Termux, you may add your export co
    $env:OPENROUTER_API_KEY = "YOUR_OPENROUTER_API_KEY"
    $env:PHOENIX_CLOUD_BASE_URL = "https://openrouter.ai/api/v1"
    $env:PHOENIX_CLOUD_MODEL = "openrouter/free"
-   $env:GEMINI_API_KEY = "YOUR_GEMINI_API_KEY"
+   $env:PHOENIX_TTS_MODEL = "x-ai/grok-voice-tts-1.0"
+   $env:PHOENIX_TTS_VOICE = "rex"
    ```
 
    Or Gemini chat + voice:
