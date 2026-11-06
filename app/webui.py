@@ -110,8 +110,9 @@ def make_handler(assistant: Assistant):
                     "tts_voice": assistant.settings.tts_voice,
                     "voice_provider": (
                         "Qwen3-TTS"
-                        if (assistant.settings.use_qwen_tts
-                            and assistant.settings.voice_api_url)
+                        if (assistant.settings.use_qwen_tts and assistant.settings.voice_api_url)
+                        else "OpenRouter Grok Voice TTS"
+                        if ("openrouter.ai" in assistant.settings.cloud_base_url and assistant.settings.cloud_api_key)
                         else "Gemini TTS"
                         if (assistant.settings.tts_api_key
                             or ("generativelanguage.googleapis.com" in assistant.settings.cloud_base_url
@@ -119,8 +120,8 @@ def make_handler(assistant: Assistant):
                         else "Not configured"
                     ),
                     "voice_ready": bool(
-                        (assistant.settings.use_qwen_tts
-                         and assistant.settings.voice_api_url)
+                        (assistant.settings.use_qwen_tts and assistant.settings.voice_api_url)
+                        or ("openrouter.ai" in assistant.settings.cloud_base_url and assistant.settings.cloud_api_key)
                         or assistant.settings.tts_api_key
                         or ("generativelanguage.googleapis.com" in assistant.settings.cloud_base_url
                             and assistant.settings.cloud_api_key)
