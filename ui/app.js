@@ -35,7 +35,7 @@ function describeFailure(message) {
   if (/403|forbidden|permission/i.test(value)) return {source:"Provider access / permissions",cause:"The service refused access, or a required browser permission was denied.",action:"Check API access and Android/Chrome microphone permissions."};
   if (/network|fetch|failed to fetch|connection|timeout|offline|502|503|504/i.test(value)) return {source:"Network / cloud connection",cause:"ULTRON could not complete a request to the local server or cloud provider.",action:"Check your internet connection and confirm the ULTRON Termux server is still running."};
   if (/microphone|speech recognition|recording|audio input|notallowed|notfound/i.test(value)) return {source:"Microphone / audio input",cause:"The browser could not start or access microphone input.",action:"Allow microphone access for Chrome and ULTRON, then reload the page."};
-  if (/voice|speech|tts|audio|gemini/i.test(value)) return {source:"Voice generation (TTS)",cause:"The speech provider failed to generate or decode audio.",action:"Check the Gemini TTS key, model availability, network, and quota. Chat may still work without voice."};
+  if (/voice|speech|tts|audio|gemini|grok|openrouter/i.test(value)) return {source:"Voice generation (TTS)",cause:"The speech provider failed to generate or decode audio.",action:"Check the OpenRouter key, Grok Voice model availability, network, and TTS credits. Chat may still work without voice."};
   return {source:"ULTRON application",cause:"The application reported an error. The original message is shown below.",action:"Use the details here and the Termux log to identify the failing component."};
 }
 function recordSystemError(message, component = "ULTRON") {
