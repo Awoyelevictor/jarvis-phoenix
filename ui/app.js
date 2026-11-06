@@ -224,11 +224,17 @@ function createRecognition() {
     if (sessionActive && !playbackSource && !busy) setMode("listening", "LISTENING", "I'm listening. Speak naturally.");
   };
   recognition.onerror = (event) => {
-    if (event.error === "not-allowed") {
-      sessionActive = false;
-      updateControls();
-      toast("Microphone permission was denied. Allow microphone access in Chrome site settings.");
-      logEvent("Microphone permission denied");
+    if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+      // getUserMedia already granted the physical microphone. This error is
+      // from Chrome's separate Web Speech recognition service, not site mic permission.
+      const micGranted = microphoneStream?.getAudioTracks().some(track => track.readyState === "live");
+      const detail = micGranted
+        ? "Microphone access is allowed, but Chrome's speech-recognition service refused the request. Check Google voice typing / speech services on Android, then retry."
+        : "Chrome did not grant microphone access. Check Android and site microphone permissions.";
+      logEvent(micGranted
+        ? "Speech recognition service denied access (microphone stream is live)"
+        : "Speech recognition denied access (no live microphone stream)");
+      activateRecorderFallback(new Error(detail));
     } else if (event.error !== "no-speech" && event.error !== "aborted") {
       logEvent("Speech recognition failed: " + event.error);
       activateRecorderFallback(new Error("Speech recognition unavailable: " + event.error));
@@ -299,9 +305,9 @@ async function activateRecorderFallback(cause) {
   updateControls();
   logEvent("Browser speech recognition unavailable; paid transcription fallback disabled");
   const detail = cause?.message || "This browser does not expose SpeechRecognition.";
-  const message = "ULTRON uses browser speech recognition to avoid paid transcription charges. This browser could not start it. Open this interface in Chrome, allow microphone and speech-recognition permissions, then try again. " + detail;
+  const message = "ULTRON uses browser speech recognition to avoid paid transcription charges. " + detail + " No paid transcription request was sent.";
   toast(message);
-  setMode("error", "BROWSER STT UNAVAILABLE", "Use a browser with built-in speech recognition. No paid transcription request was sent.");
+  setMode("error", "BROWSER SPEECH SERVICE UNAVAILABLE", detail + " No paid transcription request was sent.");
 }
 function addMessage(role, text, pending = false) {
   const feed = $("chat-feed");
@@ -657,13 +663,11 @@ function updateClock() { $("clock").textContent = new Date().toLocaleTimeString(
 updateClock();
 setInterval(updateClock, 1000);
 loadStatus();
-// Auto-request microphone access on startup; the browser's permission prompt remains mandatory.
+// On Android Chrome, start microphone + Web Speech only after a deliberate
+// user tap. Automatic page-load startup can be rejected by speech services.
 if (navigator.mediaDevices?.getUserMedia) {
-  window.addEventListener("load", () => {
-    setMode("connecting","ACTIVATING MICROPHONE","Requesting microphone access…");
-    startSession();
-  }, {once:true});
+  setMode("standby","SYSTEM STANDBY","Tap the ULTRON head or microphone button to activate voice.");
 } else {
-  setMode("error","MICROPHONE UNAVAILABLE","Open ULTRON in Chrome over localhost and enable microphone access.");
+  setMode("error","MICROPHONE UNAVAILABLE","This browser does not expose microphone access. Open ULTRON in a supported browser.");
 }
 if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
