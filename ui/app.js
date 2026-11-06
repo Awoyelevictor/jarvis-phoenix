@@ -288,38 +288,20 @@ function startListening() {
   }
 }
 async function activateRecorderFallback(cause) {
-  if (!sessionActive || recorderFallback) return;
-  try {
-    try { recognition?.abort(); } catch {}
-    recognition = null;
-    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
-      throw new Error("This browser cannot access microphone recording. Open ULTRON in Chrome and allow microphone access.");
-    }
-    if (!microphoneStream) {
-      microphoneStream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-      });
-    }
-    if (!sessionActive) {
-      microphoneStream.getTracks().forEach(track => track.stop());
-      microphoneStream = null;
-      return;
-    }
-    recorderFallback = true;
-    updateControls();
-    logEvent("Switched to direct microphone recording");
-    startFallbackRecording();
-    toast("Using direct microphone mode.");
-  } catch (error) {
-    sessionActive = false;
-    updateControls();
-    logEvent("Microphone fallback failed");
-    const message = error.name === "NotAllowedError"
-      ? "Microphone permission denied. Allow microphone access for this site in Chrome settings."
-      : (error.message || cause?.message || "Could not activate microphone.");
-    toast(message);
-    setMode("error", "MICROPHONE ERROR", "Allow microphone access, then tap the head again.");
-  }
+  if (!sessionActive) return;
+  try { recognition?.abort(); } catch {}
+  recognition = null;
+  recorderFallback = false;
+  sessionActive = false;
+  microphoneStream?.getTracks().forEach(track => track.stop());
+  microphoneStream = null;
+  micAudioSource?.disconnect(); micAudioSource = null;
+  updateControls();
+  logEvent("Browser speech recognition unavailable; paid transcription fallback disabled");
+  const detail = cause?.message || "This browser does not expose SpeechRecognition.";
+  const message = "ULTRON uses browser speech recognition to avoid paid transcription charges. This browser could not start it. Open this interface in Chrome, allow microphone and speech-recognition permissions, then try again. " + detail;
+  toast(message);
+  setMode("error", "BROWSER STT UNAVAILABLE", "Use a browser with built-in speech recognition. No paid transcription request was sent.");
 }
 function addMessage(role, text, pending = false) {
   const feed = $("chat-feed");
@@ -444,72 +426,42 @@ function resumeMicrophoneAfterSpeech() {
 }
 async function speak(text) {
   pauseMicrophoneForSpeech();
-  setMode("thinking", "GENERATING VOICE", "Preparing ULTRON's natural voice.");
-  let speechStarted = false;
+  setMode("thinking", "GENERATING VOICE", "Preparing ULTRON's deep synthetic voice.");
   try {
-  const response = await fetch("/api/voice", {
-    method: "POST", headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({text})
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error || "Gemini voice generation failed.");
-  if (!sessionActive) { resumeMicrophoneAfterSpeech(); return; }
-  await prepareAudio();
-  const binary = atob(data.audio);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  const audioBuffer = await audioContext.decodeAudioData(bytes.buffer);
-  if (!sessionActive) return;
-  activeSpeechText = text;
-  playbackSource = audioContext.createBufferSource();
-  const source = playbackSource;
-  source.buffer = audioBuffer;
-  source.connect(analyser);
-  source.connect(audioContext.destination);
-  source.onended = () => {
-    if (playbackSource !== source) return;
-    playbackSource = null;
-    activeSpeechText = "";
-    resetGlow();
-    resumeMicrophoneAfterSpeech();
-    if (sessionActive && !busy) setMode("listening", "LISTENING", "I'm listening. Speak naturally.");
-    else if (!sessionActive) setMode("standby", "SYSTEM STANDBY", "Text channel active.");
-  };
-  setMode("speaking", "ULTRON IS SPEAKING", "Speak at any time to interrupt.");
-  $("control-caption").textContent = "VOICE OUTPUT · MIC ACTIVE";
-  source.start();
-  speechStarted = true;
-  animateAudio();
+    const response = await fetch("/api/voice", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({text})
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "ULTRON voice generation failed.");
+    if (!sessionActive) { resumeMicrophoneAfterSpeech(); return; }
+    await prepareAudio();
+    const binary = atob(data.audio);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const audioBuffer = await audioContext.decodeAudioData(bytes.buffer);
+    if (!sessionActive) { resumeMicrophoneAfterSpeech(); return; }
+    activeSpeechText = text;
+    playbackSource = audioContext.createBufferSource();
+    const source = playbackSource;
+    source.buffer = audioBuffer;
+    source.connect(analyser);
+    source.connect(audioContext.destination);
+    source.onended = () => {
+      if (playbackSource !== source) return;
+      playbackSource = null;
+      activeSpeechText = "";
+      resetGlow();
+      resumeMicrophoneAfterSpeech();
+      if (sessionActive && !busy) setMode("listening", "LISTENING", "I'm listening. Speak naturally.");
+      else if (!sessionActive) setMode("standby", "SYSTEM STANDBY", "Text channel active.");
+    };
+    setMode("speaking", "ULTRON IS SPEAKING", "Speak at any time to interrupt.");
+    $("control-caption").textContent = "GROK VOICE · MIC ACTIVE";
+    source.start();
+    animateAudio();
   } catch (error) {
-    if (!speechStarted && window.speechSynthesis && window.SpeechSynthesisUtterance && sessionActive) {
-      // Last-resort device voice keeps ULTRON audible when cloud TTS is down.
-      try {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 0.92;
-        utterance.pitch = 0.78;
-        utterance.onstart = () => {
-          setMode("speaking", "ULTRON IS SPEAKING", "Using the device voice while the cloud voice service is unavailable.");
-          $("control-caption").textContent = "DEVICE VOICE · MIC ACTIVE";
-        };
-        utterance.onend = () => {
-          activeSpeechText = "";
-          resumeMicrophoneAfterSpeech();
-          if (sessionActive && !busy) setMode("listening", "LISTENING", "I'm listening. Speak naturally.");
-        };
-        utterance.onerror = () => {
-          resumeMicrophoneAfterSpeech();
-          setMode("error", "VOICE OUTPUT ERROR", "Cloud and device speech are unavailable.");
-        };
-        activeSpeechText = text;
-        window.speechSynthesis.speak(utterance);
-        logEvent("Cloud TTS unavailable; using device speech synthesis.");
-        return;
-      } catch (fallbackError) {
-        logEvent("Device speech fallback failed: " + (fallbackError.message || "unknown error"));
-      }
-    }
-    if (!speechStarted) resumeMicrophoneAfterSpeech();
+    resumeMicrophoneAfterSpeech();
     throw error;
   }
 }
@@ -658,7 +610,7 @@ async function loadStatus() {
     $("memory-sync").textContent = data.cloud_memory ? "CLOUD + LOCAL" : "LOCAL ONLY";
     $("listen-capability").textContent = data.continuous_listening ? "SUPPORTED" : "LIMITED";
     logEvent(cloud?.ready ? "Cloud intelligence configured" : "Cloud intelligence unavailable");
-    logEvent(data.voice_ready ? "Gemini voice configured" : "Voice provider unavailable");
+    logEvent(data.voice_ready ? (data.voice_provider || "Voice provider") + " configured" : "Voice provider unavailable");
     if (!cloud?.ready) $("overall-detail").textContent = "Cloud provider needs attention";
   } catch (error) {
     recordSystemError(error.message || "Unable to retrieve system status", "Status API");
