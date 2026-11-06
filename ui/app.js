@@ -518,13 +518,31 @@ async function startSession() {
     microphoneStream = null;
     micAudioSource?.disconnect(); micAudioSource = null;
     updateControls();
-    logEvent("Microphone activation failed: " + (error.name || error.message || "unknown"));
-    const message = error.name === "NotAllowedError" || error.name === "SecurityError"
-      ? "Chrome denied microphone access. Check Android app permission and Chrome site settings, then reload."
-      : error.name === "NotFoundError"
-        ? "No microphone was found on this device."
-        : error.message || "Could not start microphone.";
+
+    const errorName = String(error?.name || "UnknownError");
+    const rawMessage = String(error?.message || error || "No browser error message was provided.");
+    const secureContext = window.isSecureContext === true;
+    const mediaApiAvailable = Boolean(navigator.mediaDevices?.getUserMedia);
+    const environment = `name=${errorName}; message=${rawMessage}; secureContext=${secureContext}; mediaDevices=${mediaApiAvailable}; origin=${location.origin}`;
+    logEvent("Microphone activation failed: " + environment);
+
+    let message;
+    if (errorName === "NotAllowedError" || errorName === "SecurityError") {
+      message = "The browser refused microphone capture. This can be caused by a browser/site permission, Android-level restriction, or an embedded-page policy. The diagnostic now includes the exact browser error.";
+    } else if (errorName === "NotFoundError" || errorName === "DevicesNotFoundError") {
+      message = "The browser could not find an available microphone input.";
+    } else if (errorName === "NotReadableError" || errorName === "TrackStartError" || errorName === "AbortError") {
+      message = "The microphone exists, but the browser or operating system could not open it. It may be busy or unavailable.";
+    } else if (errorName === "OverconstrainedError" || errorName === "ConstraintNotSatisfiedError") {
+      message = "The microphone rejected one of the requested audio settings.";
+    } else if (!mediaApiAvailable || !secureContext) {
+      message = "Microphone capture is unavailable in this browser context. ULTRON requires a secure page and the browser microphone API.";
+    } else {
+      message = "Microphone startup failed. Open diagnostics for the exact browser error and environment.";
+    }
+
     toast(message);
+    recordSystemError(environment, "Microphone");
     setMode("error","MICROPHONE ERROR",message);
   }
 }
