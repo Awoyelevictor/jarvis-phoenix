@@ -1,6 +1,7 @@
 const $ = (id) => document.getElementById(id);
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recognition = null;
+let recognitionFatalError = false;
 let microphoneStream = null;
 let mediaRecorder = null;
 let recordedChunks = [];
@@ -217,7 +218,7 @@ function stopUltronSpeech() {
 }
 function createRecognition() {
   recognition = new SpeechRecognition();
-  recognition.lang = navigator.language || "en-NG";
+  recognition.lang = "en-NG";
   recognition.continuous = true;
   recognition.interimResults = true;
   recognition.maxAlternatives = 1;
@@ -226,21 +227,16 @@ function createRecognition() {
     if (sessionActive && !playbackSource && !busy) setMode("listening", "LISTENING", "I'm listening. Speak naturally.");
   };
   recognition.onerror = (event) => {
-    if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-      // getUserMedia already granted the physical microphone. This error is
-      // from Chrome's separate Web Speech recognition service, not site mic permission.
-      const micGranted = microphoneStream?.getAudioTracks().some(track => track.readyState === "live");
-      const detail = micGranted
-        ? "Microphone access is allowed, but Chrome's speech-recognition service refused the request. Check Google voice typing / speech services on Android, then retry."
-        : "Chrome did not grant microphone access. Check Android and site microphone permissions.";
-      logEvent(micGranted
-        ? "Speech recognition service denied access (microphone stream is live)"
-        : "Speech recognition denied access (no live microphone stream)");
-      activateRecorderFallback(new Error(detail));
-    } else if (event.error !== "no-speech" && event.error !== "aborted") {
-      logEvent("Speech recognition failed: " + event.error);
-      activateRecorderFallback(new Error("Speech recognition unavailable: " + event.error));
-    }
+    if (event.error === "no-speech" || event.error === "aborted") return;
+    const fatal = event.error === "not-allowed" || event.error === "service-not-allowed";
+    if (fatal) recognitionFatalError = true;
+    const detail = fatal
+      ? "Android Chrome's built-in speech recognition service refused the request. ULTRON uses the same browser-native speech input as Phoenix AI Evo; no paid Whisper transcription is called."
+      : "Browser speech recognition reported: " + event.error + ". ULTRON will attempt to reconnect.";
+    logEvent("Browser speech recognition error: " + event.error);
+    recordSystemError(detail, "Browser speech recognition");
+    setMode("error", "SPEECH RECOGNITION ERROR", detail);
+    if (fatal) toast(detail);
   };
   recognition.onresult = (event) => {
     let interim = "";
@@ -271,9 +267,11 @@ function createRecognition() {
     if (!sessionActive) return;
     clearTimeout(restartTimer);
     restartTimer = setTimeout(() => {
-      if (!sessionActive || !recognition) return;
-      try { recognition.start(); } catch {}
-    }, 250);
+      if (!sessionActive || !recognition || recognitionFatalError) return;
+      try { recognition.start(); } catch {
+        logEvent("Speech recognition reconnect is waiting for the browser");
+      }
+    }, 500);
   };
 }
 function startListening() {
@@ -286,13 +284,21 @@ function startListening() {
     // onstart. Do not leave the HUD looking active while the mic is idle.
     recognitionStartTimer = setTimeout(() => {
       if (sessionActive && recognition && !recorderFallback) {
-        logEvent("Speech recognition startup timed out");
-        activateRecorderFallback(new Error("Speech recognition did not start."));
+        recognitionFatalError = true;
+        const detail = "Android Chrome did not start its built-in speech recognition service. No cloud transcription or paid Whisper fallback will be used.";
+        logEvent("Browser speech recognition startup timed out");
+        recordSystemError(detail, "Browser speech recognition");
+        setMode("error", "SPEECH SERVICE UNAVAILABLE", detail);
+        toast(detail);
       }
-    }, 3500);
+    }, 8000);
   } catch (error) {
-    logEvent("Browser speech recognition could not start");
-    activateRecorderFallback(error);
+    recognitionFatalError = true;
+    const detail = "Browser speech recognition could not start: " + (error.message || "unknown browser error");
+    logEvent(detail);
+    recordSystemError(detail, "Browser speech recognition");
+    setMode("error", "SPEECH SERVICE UNAVAILABLE", detail);
+    toast(detail);
   }
 }
 async function activateRecorderFallback(cause) {
@@ -514,21 +520,14 @@ async function startSession() {
       animateAudio();
     } catch (audioError) { logEvent("Audio visualizer deferred until interaction"); }
     if (!sessionActive) return;
-    const androidBrowser = /Android/i.test(navigator.userAgent);
-    if (SpeechRecognition && (!androidBrowser || !window.MediaRecorder)) {
-      createRecognition();
-      recorderFallback = false;
-      logEvent("Browser speech recognition requested");
-      startListening();
-      return;
+    if (!SpeechRecognition) {
+      throw new Error("This browser does not provide native SpeechRecognition. ULTRON uses the same browser-native speech input as Phoenix AI Evo and will not switch to paid cloud transcription.");
     }
-    // Android Chrome can expose SpeechRecognition while its native service
-    // refuses to deliver transcripts. Use one microphone capture API only:
-    // MediaRecorder + the server transcription route.
-    logEvent(androidBrowser
-      ? "Android detected; using MediaRecorder transcription path"
-      : "SpeechRecognition unavailable; using MediaRecorder transcription path");
-    await activateRecorderFallback(new Error("Using the compatible recording path."));
+    recognitionFatalError = false;
+    recorderFallback = false;
+    createRecognition();
+    logEvent("Phoenix Evo-compatible browser-native speech recognition requested (en-NG)");
+    startListening();
   } catch (error) {
     sessionActive = false;
     microphoneStream?.getTracks().forEach(track => track.stop());
@@ -645,6 +644,7 @@ function stopSession() {
   clearTimeout(restartTimer);
   clearTimeout(recognitionStartTimer);
   if(vadFrame)cancelAnimationFrame(vadFrame); vadFrame=0; vadSpeechStarted=false; vadSilenceAt=0;
+  recognitionFatalError = false;
   try { recognition?.stop(); } catch {}
   recognition = null;
   if(mediaRecorder&&mediaRecorder.state!=="inactive"){try{mediaRecorder.stop()}catch{}}
