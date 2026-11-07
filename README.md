@@ -10,7 +10,7 @@ ULTRON is the user-facing assistant built in this repository. It combines a brow
 
 - Voice-first browser interface with a reactive ULTRON core.
 - Cloud chat through one configured OpenAI-compatible endpoint at a time (for example OpenRouter or Gemini).
-- OpenRouter Grok Voice TTS (`rex`) when OpenRouter is selected; Gemini TTS remains available for Gemini-only setups.
+- Hosted ElevenLabs TTS when `ELEVENLABS_API_KEY` is configured; Voicebox, Qwen, OpenRouter Grok Voice TTS, and Gemini TTS remain available as fallbacks.
 - Android voice input uses MediaRecorder with server-side transcription; desktop browsers use native speech recognition where available.
 - Cloud transcription is disabled by default to prevent unexpected charges. Enable ULTRON_ENABLE_CLOUD_TRANSCRIPTION=true only after approving provider usage. OpenRouter uses ULTRON_STT_MODEL (default openai/whisper-1) and the existing server-side OpenRouter key.
 - Local SQLite memory; optional, explicitly approved Supabase memory sync.
@@ -26,7 +26,7 @@ You need:
 - Git
 - An internet connection
 - An OpenRouter API key or Gemini API key for cloud chat
-- For OpenRouter voice output, no additional key beyond `OPENROUTER_API_KEY`; for Gemini-only voice output, a Gemini API key
+- For ElevenLabs voice output, configure `ELEVENLABS_API_KEY`; for OpenRouter voice output, no additional key beyond `OPENROUTER_API_KEY`; for Gemini-only voice output, a Gemini API key
 
 The core application uses Python's standard library. You do not need to install the legacy MLX/Whisper/MeloTTS packages in `requirements.txt) to run the current ULTRON browser interface.
 
@@ -171,6 +171,10 @@ On Android/Termux, Ollama is not assumed to be installed or available. You can u
 | `PHOENIX_CLOUD_BASE_URL` | Selected OpenAI-compatible chat endpoint |
 | `PHOENIX_CLOUD_MODEL` | Chat model name |
 | `PHOENIX_TTS_API_KEY` | Optional separate Gemini TTS key; defaults to `GEMINI_API_KEY` |
+| `ELEVENLABS_API_KEY` | ElevenLabs API key for hosted TTS (server-side only) |
+| `ELEVENLABS_VOICE_ID` | ElevenLabs voice ID (default: Adam) |
+| `ELEVENLABS_MODEL_ID` | ElevenLabs TTS model (default: `eleven_multilingual_v2`) |
+| `ELEVENLABS_OUTPUT_FORMAT` | ElevenLabs audio format (default: `mp3_44100_128`) |
 | `PHOENIX_TTS_MODEL` | TTS model (OpenRouter default: `x-ai/grok-voice-tts-1.0`; Gemini default: `gemini-3.8-flash-tts`) |
 | `PHOENIX_TTS_VOICE` | Voice ID (OpenRouter default: `rex`; Gemini default: `Algenib`) |
 | `PHOENIX_TTS_STYLE` | Natural-language Gemini voice direction |
@@ -209,7 +213,7 @@ export VOICEBOX_PROFILE_ID="YOUR_VOICEBOX_PROFILE_ID"
 export VOICEBOX_ENGINE="kokoro"
 ```
 
-Voicebox is attempted first when both its API URL and profile ID are configured. If it is unreachable or returns an error, ULTRON continues through its existing Qwen, OpenRouter, and Gemini speech fallbacks. Voicebox does not replace microphone capture, transcription, chat, memory, or the existing browser audio player.
+ElevenLabs is attempted first when `ELEVENLABS_API_KEY` is configured. If it fails, ULTRON tries Voicebox (when both its API URL and profile ID are configured), then the existing Qwen, OpenRouter, and Gemini speech providers. If it is unreachable or returns an error, ULTRON continues through its existing Qwen, OpenRouter, and Gemini speech fallbacks. Voicebox does not replace microphone capture, transcription, chat, memory, or the existing browser audio player.
 
 **Networking matters:** `127.0.0.1` only works when ULTRON's Python server and Voicebox run on the same machine. A Render-hosted ULTRON backend cannot reach Voicebox running on your phone or laptop through localhost. For that setup, use a private, authenticated HTTPS connection or run ULTRON and Voicebox together on a machine that can reach both. Do not expose Voicebox's local API directly to the public internet.
 
