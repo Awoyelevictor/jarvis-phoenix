@@ -490,9 +490,17 @@ async function startSession() {
     sessionActive = true;
     updateControls();
     setMode("connecting","REQUESTING MICROPHONE","Connecting directly to the phone microphone…");
-    logEvent("Requesting microphone stream directly");
-    // Acquire the real microphone stream first. SpeechRecognition alone can fail
-    // silently on some Android Chrome builds and does not expose a permission prompt.
+    logEvent("Starting speech recognition directly from the user tap");
+    if (!SpeechRecognition) {
+      throw new Error("This browser does not provide native SpeechRecognition. The text command box remains available; voice input needs a supported speech service.");
+    }
+    // Start Web Speech synchronously in the tap handler's activation window.
+    // Waiting for getUserMedia first can consume Android Chrome's transient
+    // user activation and cause a misleading not-allowed recognition error.
+    recognitionFatalError = false;
+    recorderFallback = false;
+    createRecognition();
+    startListening();
     microphoneStream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
     });
@@ -506,16 +514,11 @@ async function startSession() {
       animateAudio();
     } catch (audioError) { logEvent("Audio visualizer deferred until interaction"); }
     if (!sessionActive) return;
-    if (!SpeechRecognition) {
-      throw new Error("This browser does not provide native SpeechRecognition. ULTRON uses the same browser-native speech input as Phoenix AI Evo and will not switch to paid cloud transcription.");
-    }
-    recognitionFatalError = false;
-    recorderFallback = false;
-    createRecognition();
-    logEvent("Phoenix Evo-compatible browser-native speech recognition requested (en-US)");
-    startListening();
   } catch (error) {
     sessionActive = false;
+    try { recognition?.abort(); } catch {}
+    recognition = null;
+    clearTimeout(recognitionStartTimer);
     microphoneStream?.getTracks().forEach(track => track.stop());
     microphoneStream = null;
     micAudioSource?.disconnect(); micAudioSource = null;
@@ -696,6 +699,9 @@ $("chat-form").addEventListener("submit", event => {
   const message = input.value.trim();
   if (!message || chatBusy) return;
   input.value = "";
+  // Unlock Web Audio directly inside the send-button gesture so the later
+  // network response can be played without mobile autoplay blocking.
+  prepareAudio().catch(error => logEvent("Audio output could not unlock: " + (error.message || "unknown error")));
   sendChatMessage(message, false);
 });
 $("reset-button").addEventListener("click", resetConversation);
