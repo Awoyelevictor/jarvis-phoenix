@@ -176,7 +176,14 @@ On Android/Termux, Ollama is not assumed to be installed or available. You can u
 | `PHOENIX_TTS_STYLE` | Natural-language Gemini voice direction |
 | `ULTRON_ENABLE_CLOUD_TRANSCRIPTION` | Explicitly enable cloud speech-to-text (true/false, default false) |
 | `ULTRON_STT_MODEL` | OpenRouter transcription model (default openai/whisper-1) |
-| `USE_QWEN_TTS` | Enable the remote Qwen3-TTS voice engine (`true`/`false`) |
+| `VOICEBOX_API_URL` | Voicebox REST API base URL (for example `http://127.0.0.1:17493`) |
+| `VOICEBOX_PROFILE_ID` | Voicebox profile UUID used for ULTRON speech |
+| `VOICEBOX_ENGINE` | Voicebox engine (`kokoro` by default; also supports `qwen`, `qwen_custom_voice`, `luxtts`, `chatterbox`, `chatterbox_turbo`, and `tada`) |
+| `VOICEBOX_LANGUAGE` | Voicebox language code (default `en`) |
+| `VOICEBOX_INSTRUCT` | Optional delivery instruction for compatible Voicebox engines such as `qwen_custom_voice` |
+| `VOICEBOX_API_KEY` | Optional bearer token when a trusted reverse proxy protects the Voicebox API |
+| `VOICEBOX_REQUEST_TIMEOUT` | Voicebox generation/download timeout in seconds (default `180`) |
+| `USE_QWEN_TTS` | Enable the legacy remote Qwen3-TTS voice engine (`true`/`false`) |
 | `ULTRON_VOICE_API_URL` | Base HTTPS URL of the Qwen voice API (keep credentials out of the URL) |
 | `ULTRON_VOICE_API_PATH` | Speech route; use `/synthesize` for the Colab wrapper or `/v1/audio/speech` for ULTRON-VOICE-ENGINE |
 | `ULTRON_VOICE_API_KEY` | Private bearer token accepted by the Qwen voice API |
@@ -188,6 +195,24 @@ On Android/Termux, Ollama is not assumed to be installed or available. You can u
 | `ULTRON_OWNER_ID` | Optional UUID to share an approved cloud-memory identity across devices |
 
 For Supabase cloud memory, configure the Supabase URL and secret key only in the trusted Python server environment. Never expose a Supabase service-role key in browser code, screenshots, public commits, or client-side apps. Cloud sync is opt-in per memory.
+
+
+## Voicebox TTS integration
+
+ULTRON can use a running [Voicebox](https://voicebox.sh/) instance as its primary speech engine. Configure `VOICEBOX_API_URL` and `VOICEBOX_PROFILE_ID`; ULTRON sends text to Voicebox's `POST /generate` endpoint, then retrieves the generated audio from `GET /audio/{generation_id}`. The default engine is `kokoro`; choose another engine with `VOICEBOX_ENGINE` if that engine is installed and available in your Voicebox instance.
+
+Example for ULTRON and Voicebox running on the same computer:
+
+```bash
+export VOICEBOX_API_URL="http://127.0.0.1:17493"
+export VOICEBOX_PROFILE_ID="YOUR_VOICEBOX_PROFILE_ID"
+export VOICEBOX_ENGINE="kokoro"
+```
+
+Voicebox is attempted first when both its API URL and profile ID are configured. If it is unreachable or returns an error, ULTRON continues through its existing Qwen, OpenRouter, and Gemini speech fallbacks. Voicebox does not replace microphone capture, transcription, chat, memory, or the existing browser audio player.
+
+**Networking matters:** `127.0.0.1` only works when ULTRON's Python server and Voicebox run on the same machine. A Render-hosted ULTRON backend cannot reach Voicebox running on your phone or laptop through localhost. For that setup, use a private, authenticated HTTPS connection or run ULTRON and Voicebox together on a machine that can reach both. Do not expose Voicebox's local API directly to the public internet.
+
 
 ## Memory and privacy
 

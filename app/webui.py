@@ -106,10 +106,12 @@ def make_handler(assistant: Assistant):
                     "name": "ULTRON",
                     "providers": providers,
                     "cloud_model": assistant.settings.cloud_model,
-                    "tts_model": assistant.settings.tts_model,
-                    "tts_voice": assistant.settings.tts_voice,
+                    "tts_model": (assistant.settings.voicebox_engine if (assistant.settings.voicebox_api_url and assistant.settings.voicebox_profile_id) else assistant.settings.tts_model),
+                    "tts_voice": ("Voicebox profile" if (assistant.settings.voicebox_api_url and assistant.settings.voicebox_profile_id) else assistant.settings.tts_voice),
                     "voice_provider": (
-                        "Qwen3-TTS"
+                        "Voicebox"
+                        if (assistant.settings.voicebox_api_url and assistant.settings.voicebox_profile_id)
+                        else "Qwen3-TTS"
                         if (assistant.settings.use_qwen_tts and assistant.settings.voice_api_url)
                         else "OpenRouter Grok Voice TTS"
                         if ("openrouter.ai" in assistant.settings.cloud_base_url and assistant.settings.cloud_api_key)
@@ -119,8 +121,11 @@ def make_handler(assistant: Assistant):
                                 and assistant.settings.cloud_api_key))
                         else "Not configured"
                     ),
+                    "voicebox_configured": bool(assistant.settings.voicebox_api_url and assistant.settings.voicebox_profile_id),
+                    "voicebox_engine": assistant.settings.voicebox_engine,
                     "voice_ready": bool(
-                        (assistant.settings.use_qwen_tts and assistant.settings.voice_api_url)
+                        (assistant.settings.voicebox_api_url and assistant.settings.voicebox_profile_id)
+                        or (assistant.settings.use_qwen_tts and assistant.settings.voice_api_url)
                         or ("openrouter.ai" in assistant.settings.cloud_base_url and assistant.settings.cloud_api_key)
                         or assistant.settings.tts_api_key
                         or ("generativelanguage.googleapis.com" in assistant.settings.cloud_base_url

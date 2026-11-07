@@ -175,3 +175,82 @@ def test_microphone_transcription_uses_configured_gemini_model(monkeypatch):
 
     assert transcript == "Hello ULTRON"
     assert captured["url"].endswith("/models/gemini-3.8-flash:generateContent")
+
+
+
+def test_voicebox_speech_posts_generation_and_downloads_audio(monkeypatch):
+    import base64
+    from app.config import Settings
+
+    captured = []
+
+    def fake_urlopen(request, timeout):
+        captured.append((request.get_method(), request.full_url, request.data))
+        if request.get_method() == "POST":
+            return FakeResponse({"id": "generation-123"})
+        return FakeBinaryResponse(b"RIFFvoicebox-wav")
+
+    monkeypatch.setattr("app.speech.urlopen", fake_urlopen)
+    settings = Settings(
+        voicebox_api_url="http://127.0.0.1:17493",
+        voicebox_profile_id="profile-123",
+        voicebox_engine="kokoro",
+        voicebox_language="en",
+    )
+    audio, mime_type = GeminiSpeechProvider(settings).synthesize("Systems online.")
+
+    assert base64.b64decode(audio) == b"RIFFvoicebox-wav"
+    assert mime_type == "audio/wav"
+    assert captured[0][0:2] == ("POST", "http://127.0.0.1:17493/generate")
+    assert json.loads(captured[0][2].decode("utf-8")) == {
+        "profile_id": "profile-123",
+        "text": "Systems online.",
+        "language": "en",
+        "engine": "kokoro",
+    }
+    assert captured[1][0:2] == ("GET", "http://127.0.0.1:17493/audio/generation-123")
+
+
+def test_voicebox_failure_falls_back_to_gemini(monkeypatch):
+    from urllib.error import URLError
+
+    calls = {"count": 0}
+
+    def fake_urlopen(request, timeout):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise URLError("Voicebox is offline")
+        return FakeResponse({
+            "candidates": [{
+                "content": {
+                    "parts": [{
+                        "inlineData": {"mimeType": "audio/wav", "data": "UklGRg=="}
+                    }]
+                }
+            }]
+        })
+
+    monkeypatch.setattr("app.speech.urlopen", fake_urlopen)
+    settings = Settings(
+        voicebox_api_url="http://127.0.0.1:17493",
+        voicebox_profile_id="profile-123",
+        tts_api_key="gemini-test-key",
+    )
+    audio, mime_type = GeminiSpeechProvider(settings).synthesize("Fallback test.")
+
+    assert calls["count"] == 2
+    assert audio == "UklGRg=="
+    assert mime_type == "audio/wav"
+
+
+def test_voicebox_configuration_is_read_from_environment(monkeypatch):
+    monkeypatch.setenv("VOICEBOX_API_URL", "http://127.0.0.1:17493/")
+    monkeypatch.setenv("VOICEBOX_PROFILE_ID", "profile-123")
+    monkeypatch.setenv("VOICEBOX_ENGINE", "kokoro")
+    monkeypatch.setenv("VOICEBOX_LANGUAGE", "en")
+    settings = Settings.from_env()
+
+    assert settings.voicebox_api_url == "http://127.0.0.1:17493"
+    assert settings.voicebox_profile_id == "profile-123"
+    assert settings.voicebox_engine == "kokoro"
+    assert settings.voicebox_language == "en"
