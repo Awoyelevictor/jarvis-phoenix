@@ -2,7 +2,7 @@
 
 **A cross-platform, voice-first personal AI assistant for Android phones and Windows/Linux/macOS computers.**
 
-ULTRON is the user-facing assistant built in this repository. It combines a browser-based voice interface, cloud AI chat, provider-generated speech, browser speech recognition, and private local memory. The project is open source so other developers can run it, inspect it, and contribute.
+ULTRON is the user-facing assistant built in this repository. It combines a browser-based voice interface, cloud AI chat, server-side speech recognition, ElevenLabs-generated speech, and private local memory. The project is open source so other developers can run it, inspect it, and contribute.
 
 > **Project status:** Active development. This is a Python server with a browser/PWA interface, not a native Android APK or Windows desktop installer yet. Some browser voice features vary by device and browser.
 
@@ -10,14 +10,15 @@ ULTRON is the user-facing assistant built in this repository. It combines a brow
 
 - Voice-first browser interface with a reactive ULTRON core.
 - Cloud chat through one configured OpenAI-compatible endpoint at a time (for example OpenRouter or Gemini).
-- OpenRouter Grok Voice TTS (`rex`) when OpenRouter is selected; Gemini TTS remains available for Gemini-only setups.
-- Android voice input uses MediaRecorder with server-side transcription; desktop browsers use native speech recognition where available.
-- Cloud transcription is disabled by default to prevent unexpected charges. Enable ULTRON_ENABLE_CLOUD_TRANSCRIPTION=true only after approving provider usage. OpenRouter uses ULTRON_STT_MODEL (default openai/whisper-1) and the existing server-side OpenRouter key.
+- OpenRouter Whisper handles microphone speech-to-text through the server-side audio transcription API.
+- ElevenLabs handles all spoken responses; Gemini, Qwen/Colab, and OpenRouter TTS are not used in this voice path.
+- Android and desktop use the same MediaRecorder capture path, avoiding dependence on browser-native speech recognition.
+- Voice configuration uses the existing `OPENROUTER_API_KEY` plus `ELEVENLABS_API_KEY`. Optional model/voice overrides: `ULTRON_STT_MODEL`, `ELEVENLABS_MODEL_ID`, and `ELEVENLABS_VOICE_ID`.
 - Local SQLite memory; optional, explicitly approved Supabase memory sync.
 - Session-based voice recognition and interruption where supported by the browser.
 - Runs locally on Android through Termux or on a computer with Python.
 
-**Provider routing note:** The current implementation uses the configured cloud provider first and optional Ollama as a local fallback. Automatic OpenRouter-to-Gemini cloud failover is not implemented yet. OpenRouter Grok Voice TTS uses the same OpenRouter API key as chat and is billed separately by character. Browser speech recognition avoids a separate paid transcription request; support depends on the browser.
+**Provider routing note:** Chat uses the configured cloud provider (OpenRouter is recommended) with optional Ollama as a local fallback. Voice input uses OpenRouter Whisper and voice output uses ElevenLabs. Both are usage-metered services and may incur charges; they are not unlimited. If either provider is unavailable or out of credits, ULTRON will show the provider error rather than silently switching to Gemini.
 
 ## Quick start
 
@@ -25,8 +26,8 @@ You need:
 - Python **3.10 or newer**
 - Git
 - An internet connection
-- An OpenRouter API key or Gemini API key for cloud chat
-- For OpenRouter voice output, no additional key beyond `OPENROUTER_API_KEY`; for Gemini-only voice output, a Gemini API key
+- An OpenRouter API key for chat and Whisper transcription
+- An ElevenLabs API key for spoken responses
 
 The core application uses Python's standard library. You do not need to install the legacy MLX/Whisper/MeloTTS packages in `requirements.txt) to run the current ULTRON browser interface.
 
@@ -43,19 +44,22 @@ cd jarvis-phoenix
 
 Choose **one** chat provider.
 
-**Option A — OpenRouter chat + Grok Voice TTS (recommended for the red ULTRON UI):**
+**OpenRouter chat + Whisper transcription:**
 
 Linux, macOS, and Termux:
 ```bash
 export OPENROUTER_API_KEY="YOUR_OPENROUTER_API_KEY"
 export PHOENIX_CLOUD_BASE_URL="https://openrouter.ai/api/v1"
 export PHOENIX_CLOUD_MODEL="openrouter/free"
-# Optional overrides; defaults are Grok Voice TTS with the rex voice
-export PHOENIX_TTS_MODEL="x-ai/grok-voice-tts-1.0"
-export PHOENIX_TTS_VOICE="rex"
+# OpenRouter Whisper model (default: openai/whisper-1)
+export ULTRON_STT_MODEL="openai/whisper-1"
+# ElevenLabs speech output
+export ELEVENLABS_API_KEY="YOUR_ELEVENLABS_API_KEY"
+export ELEVENLABS_VOICE_ID="pNInz6obpgDQGcFmaJgB"
+export ELEVENLABS_MODEL_ID="eleven_turbo_v2_5"
 ```
 
-**Option B — Gemini chat + Gemini voice:**
+**Optional: Gemini chat only** (voice still requires OpenRouter Whisper + ElevenLabs):
 
 Linux, macOS, and Termux:
 ```bash
@@ -64,7 +68,7 @@ export PHOENIX_CLOUD_BASE_URL="https://generativelanguage.googleapis.com/v1beta/
 export PHOENIX_CLOUD_MODEL="gemini-3.8-flash"
 ```
 
-The same OpenRouter key is used for chat, Grok TTS, and (when explicitly enabled) Whisper transcription. TTS and transcription may incur separate usage charges. For Gemini chat + Gemini TTS, the same Gemini key can be used for both; Gemini transcription is also separately gated.
+OpenRouter Whisper transcription and ElevenLabs speech generation are separate paid/usage-metered services. Gemini can still be selected for text chat, but it is not used for microphone transcription or voice output.
 
 ### 3. Start ULTRON
 

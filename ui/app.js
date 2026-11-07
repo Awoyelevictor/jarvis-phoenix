@@ -36,7 +36,7 @@ function describeFailure(message) {
   if (/403|forbidden|permission/i.test(value)) return {source:"Provider access / permissions",cause:"The service refused access, or a required browser permission was denied.",action:"Check API access and Android/Chrome microphone permissions."};
   if (/network|fetch|failed to fetch|connection|timeout|offline|502|503|504/i.test(value)) return {source:"Network / cloud connection",cause:"ULTRON could not complete a request to the local server or cloud provider.",action:"Check your internet connection and confirm the ULTRON Termux server is still running."};
   if (/microphone|speech recognition|recording|audio input|notallowed|notfound/i.test(value)) return {source:"Microphone / audio input",cause:"The browser could not start or access microphone input.",action:"Allow microphone access for Chrome and ULTRON, then reload the page."};
-  if (/voice|speech|tts|audio|gemini|grok|openrouter/i.test(value)) return {source:"Voice generation (TTS)",cause:"The speech provider failed to generate or decode audio.",action:"Check the OpenRouter key, Grok Voice model availability, network, and TTS credits. Chat may still work without voice."};
+  if (/elevenlabs|voice|speech|tts|audio/i.test(value)) return {source:"Voice generation (TTS)",cause:"The speech provider failed to generate or decode audio.",action:"Check the ElevenLabs API key, voice ID, account credits, and network. Chat may still work without voice."};
   return {source:"ULTRON application",cause:"The application reported an error. The original message is shown below.",action:"Use the details here and the Termux log to identify the failing component."};
 }
 function recordSystemError(message, component = "ULTRON") {
@@ -95,8 +95,8 @@ function openDiagnostics() {
   add("LOCAL MEMORY",status.local_memory ? "Active" : "Unavailable");
   add("CLOUD MEMORY",status.cloud_memory ? "Configured" : "Not configured (local memory remains available)");
   add("MICROPHONE",sessionActive ? (recorderFallback ? "Active — recording and transcription mode" : "Voice session active") : "Not currently active");
-  add("VOICE INPUT PATH",recorderFallback ? "MediaRecorder → server transcription → AI chat" : "Browser speech recognition → AI chat");
-  add("CLOUD TRANSCRIPTION",status.transcription_ready ? (status.transcription_provider || "Configured") : "Disabled — protected from unexpected API charges");
+  add("VOICE INPUT PATH",recorderFallback ? "MediaRecorder → OpenRouter Whisper → AI chat" : "Not active");
+  add("CLOUD TRANSCRIPTION",status.transcription_ready ? (status.transcription_provider || "Configured") : "Unavailable — check OpenRouter key and server settings");
   add("SERVER", "Local ULTRON API: " + location.origin);
   content.replaceChildren();
   for (const row of rows) {
@@ -485,26 +485,26 @@ function updateControls() {
 async function startSession() {
   try {
     if (!navigator.mediaDevices?.getUserMedia) {
-      throw new Error("Microphone API unavailable. Open ULTRON from http://127.0.0.1:8765 in Chrome.");
+      throw new Error("Microphone API unavailable. Open ULTRON in Chrome using its HTTPS Render address or localhost.");
+    }
+    if (!window.MediaRecorder) {
+      throw new Error("This browser does not support microphone recording. Update Chrome and allow microphone access.");
     }
     sessionActive = true;
     updateControls();
-    setMode("connecting","REQUESTING MICROPHONE","Connecting directly to the phone microphone…");
-    logEvent("Starting speech recognition directly from the user tap");
-    if (!SpeechRecognition) {
-      throw new Error("This browser does not provide native SpeechRecognition. The text command box remains available; voice input needs a supported speech service.");
-    }
-    // Start Web Speech synchronously in the tap handler's activation window.
-    // Waiting for getUserMedia first can consume Android Chrome's transient
-    // user activation and cause a misleading not-allowed recognition error.
-    recognitionFatalError = false;
-    recorderFallback = false;
-    createRecognition();
-    startListening();
+    setMode("connecting","REQUESTING MICROPHONE","Opening the phone microphone…");
+    logEvent("Starting direct microphone capture; browser speech recognition is bypassed.");
+    // Use one predictable path on Android: capture audio, send it to
+    // OpenRouter Whisper, then send the transcript to ULTRON's chat model.
     microphoneStream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
     });
-    logEvent("Microphone stream granted");
+    if (!sessionActive) {
+      microphoneStream.getTracks().forEach(track => track.stop());
+      microphoneStream = null;
+      return;
+    }
+    logEvent("Microphone stream granted; preparing audio capture");
     try {
       if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
       if (audioContext.state === "suspended") await audioContext.resume();
@@ -512,8 +512,10 @@ async function startSession() {
       micAudioSource = audioContext.createMediaStreamSource(microphoneStream);
       micAudioSource.connect(analyser);
       animateAudio();
-    } catch (audioError) { logEvent("Audio visualizer deferred until interaction"); }
-    if (!sessionActive) return;
+    } catch (audioError) {
+      logEvent("Audio visualizer unavailable: " + (audioError.message || "unknown error"));
+    }
+    await activateRecorderFallback(new Error("OpenRouter Whisper microphone mode is active."));
   } catch (error) {
     sessionActive = false;
     try { recognition?.abort(); } catch {}
@@ -522,30 +524,24 @@ async function startSession() {
     microphoneStream?.getTracks().forEach(track => track.stop());
     microphoneStream = null;
     micAudioSource?.disconnect(); micAudioSource = null;
+    if (vadFrame) cancelAnimationFrame(vadFrame);
+    vadFrame = 0;
     updateControls();
 
     const errorName = String(error?.name || "UnknownError");
     const rawMessage = String(error?.message || error || "No browser error message was provided.");
     const secureContext = window.isSecureContext === true;
-    const mediaApiAvailable = Boolean(navigator.mediaDevices?.getUserMedia);
-    const environment = `name=${errorName}; message=${rawMessage}; secureContext=${secureContext}; mediaDevices=${mediaApiAvailable}; origin=${location.origin}`;
+    const environment = `name=${errorName}; message=${rawMessage}; secureContext=${secureContext}; mediaDevices=${Boolean(navigator.mediaDevices?.getUserMedia)}; origin=${location.origin}`;
     logEvent("Microphone activation failed: " + environment);
-
-    let message;
-    if (errorName === "NotAllowedError" || errorName === "SecurityError") {
-      message = "The browser refused microphone capture. This can be caused by a browser/site permission, Android-level restriction, or an embedded-page policy. The diagnostic now includes the exact browser error.";
-    } else if (errorName === "NotFoundError" || errorName === "DevicesNotFoundError") {
-      message = "The browser could not find an available microphone input.";
-    } else if (errorName === "NotReadableError" || errorName === "TrackStartError" || errorName === "AbortError") {
-      message = "The microphone exists, but the browser or operating system could not open it. It may be busy or unavailable.";
-    } else if (errorName === "OverconstrainedError" || errorName === "ConstraintNotSatisfiedError") {
-      message = "The microphone rejected one of the requested audio settings.";
-    } else if (!mediaApiAvailable || !secureContext) {
-      message = "Microphone capture is unavailable in this browser context. ULTRON requires a secure page and the browser microphone API.";
-    } else {
-      message = "Microphone startup failed. Open diagnostics for the exact browser error and environment.";
-    }
-
+    const message = errorName === "NotAllowedError" || errorName === "SecurityError"
+      ? "Chrome or Android denied microphone access. Allow microphone permission for this site, then reload ULTRON."
+      : errorName === "NotFoundError" || errorName === "DevicesNotFoundError"
+        ? "No microphone input was found on this device."
+        : errorName === "NotReadableError" || errorName === "TrackStartError"
+          ? "The microphone is busy or could not be opened. Close other apps using it and retry."
+          : !window.isSecureContext
+            ? "Microphone capture requires HTTPS or localhost. Open the HTTPS Render URL."
+            : rawMessage;
     toast(message);
     recordSystemError(environment, "Microphone");
     setMode("error","MICROPHONE ERROR",message);

@@ -106,38 +106,21 @@ def make_handler(assistant: Assistant):
                     "name": "ULTRON",
                     "providers": providers,
                     "cloud_model": assistant.settings.cloud_model,
-                    "tts_model": assistant.settings.tts_model,
-                    "tts_voice": assistant.settings.tts_voice,
-                    "voice_provider": (
-                        "Qwen3-TTS"
-                        if (assistant.settings.use_qwen_tts and assistant.settings.voice_api_url)
-                        else "OpenRouter Grok Voice TTS"
-                        if ("openrouter.ai" in assistant.settings.cloud_base_url and assistant.settings.cloud_api_key)
-                        else "Gemini TTS"
-                        if (assistant.settings.tts_api_key
-                            or ("generativelanguage.googleapis.com" in assistant.settings.cloud_base_url
-                                and assistant.settings.cloud_api_key))
-                        else "Not configured"
-                    ),
-                    "voice_ready": bool(
-                        (assistant.settings.use_qwen_tts and assistant.settings.voice_api_url)
-                        or ("openrouter.ai" in assistant.settings.cloud_base_url and assistant.settings.cloud_api_key)
-                        or assistant.settings.tts_api_key
-                        or ("generativelanguage.googleapis.com" in assistant.settings.cloud_base_url
-                            and assistant.settings.cloud_api_key)
-                    ),
+                    "tts_model": assistant.settings.elevenlabs_model_id,
+                    "tts_voice": assistant.settings.elevenlabs_voice_id,
+                    "voice_provider": "ElevenLabs" if assistant.settings.elevenlabs_api_key else "Not configured",
+                    "voice_ready": bool(assistant.settings.elevenlabs_api_key and assistant.settings.elevenlabs_voice_id),
                     "local_memory": True,
                     "memory_count": len(assistant.memory.list()),
                     "profile_json": assistant.profile_path.is_file(),
                     "profile_json_path": str(assistant.profile_path),
                     "cloud_memory": assistant.memory.cloud_configured,
                     "continuous_listening": True,
-                    "transcription_ready": os.getenv("ULTRON_ENABLE_CLOUD_TRANSCRIPTION", "false").strip().lower() in {"1", "true", "yes", "on"},
-                    "transcription_provider": (
-                        "OpenRouter Whisper"
-                        if "openrouter.ai" in assistant.settings.cloud_base_url
-                        else "Gemini Flash"
+                    "transcription_ready": bool(
+                        "openrouter.ai" in assistant.settings.cloud_base_url
+                        and assistant.settings.cloud_api_key
                     ),
+                    "transcription_provider": "OpenRouter Whisper",
                     "speaker_recognition": False,
                 })
                 return
