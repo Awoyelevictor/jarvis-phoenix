@@ -309,7 +309,8 @@
 #ultronAssistantConsole #toast.show{display:block}#ultronAssistantConsole #clock{font:10px 'Share Tech Mono',monospace;color:#aab5c2}
 #ultronAssistantConsole .uc-metrics{display:flex;gap:12px;padding:8px 14px;border-top:1px solid rgba(255,255,255,.08);font:10px 'Share Tech Mono',monospace;color:#aab5c2;flex-wrap:wrap}
 #chat-launcher{cursor:pointer;pointer-events:auto}#chat-launcher:focus-visible{outline:2px solid #ff654e;outline-offset:4px}
-#ultronAssistantConsole .uc-actions,#ultronAssistantConsole .uc-form{display:none!important}
+#ultronAssistantConsole .uc-actions{display:none!important}
+#ultronAssistantConsole .uc-form{display:flex!important}
 .robot-head-wrapper:focus-visible{filter:drop-shadow(0 0 20px rgba(255,55,25,.95))}
 @media(max-width:768px){#ultronAssistantConsole{right:10px;bottom:10px;width:calc(100vw - 20px);height:min(76dvh,680px)}}
 
@@ -1184,7 +1185,7 @@
 <section id="ultronAssistantConsole" aria-label="ULTRON assistant console">
 <header class="uc-head"><div><div class="uc-title">ULTRON // COMMAND CHANNEL</div><div class="uc-status"><span id="voice-state">SYSTEM STANDBY</span> · <span id="clock">--:--:--</span></div></div><button class="uc-close" id="closeAssistantConsole" type="button" aria-label="Close assistant console">✕</button></header>
 <div class="uc-metrics"><span>CLOUD: <b id="cloud-status">CHECKING</b></span><span>VOICE: <b id="voice-status">CHECKING</b></span><span>MEMORY: <b id="memory-status">CHECKING</b></span><span id="model-name" hidden></span><span id="voice-name" hidden></span><span id="memory-sync" hidden></span><span id="listen-capability" hidden></span></div>
-<div id="chat-feed" aria-live="polite"><div class="empty-chat" id="empty-chat"><span class="empty-mark">⌁</span><strong>CHANNEL READY</strong><p>Send a command to ULTRON.</p></div></div>
+<div id="chat-feed" aria-live="polite"><div class="empty-chat" id="empty-chat"><span class="empty-mark">⌁</span><strong>CHANNEL READY</strong><p>Type a message below. ULTRON responds with voice only.</p></div></div>
 <div class="uc-actions"><button id="mic-button" class="uc-action" type="button">VOICE</button><button id="stop-button" class="uc-action" type="button" hidden>STOP VOICE</button><span id="control-caption">ACTIVATE VOICE</span><button id="reset-button" class="uc-action" type="button">RESET</button></div>
 <form id="chat-form" class="uc-form"><input id="chat-input" type="text" autocomplete="off" placeholder="Enter command..." aria-label="Message ULTRON"><button id="send-button" type="submit">SEND</button></form>
 <div id="toast" role="status"></div><div id="overall-status" hidden>STANDBY</div><div id="overall-detail" hidden>Awaiting activation</div><div id="state-label" hidden>STANDBY</div><div id="voice-hint" hidden>Text channel active.</div><div id="system-log-lines" hidden></div><div id="cloud-bar" hidden></div><div id="voice-bar" hidden></div><div id="memory-bar" hidden></div><div id="voice-engine" hidden></div>
