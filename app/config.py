@@ -38,6 +38,7 @@ class Settings:
     voicebox_language: str = "en"
     voicebox_instruct: str = ""
     voicebox_api_key: str = ""
+    voicebox_request_timeout: float = 180.0
     request_timeout: float = 90.0
     conversation_history_messages: int = 20
     memory_db_path: str = ""
@@ -76,6 +77,7 @@ class Settings:
             voicebox_language=os.getenv("VOICEBOX_LANGUAGE", "en").strip() or "en",
             voicebox_instruct=os.getenv("VOICEBOX_INSTRUCT", "").strip(),
             voicebox_api_key=os.getenv("VOICEBOX_API_KEY", ""),
+            voicebox_request_timeout=max(10.0, float(os.getenv("VOICEBOX_REQUEST_TIMEOUT", "180"))),
             request_timeout=float(os.getenv("PHOENIX_REQUEST_TIMEOUT", "90")),
             conversation_history_messages=max(2, int(os.getenv("PHOENIX_HISTORY_MESSAGES", "20"))),
             memory_db_path=os.getenv("ULTRON_MEMORY_DB", ""),
