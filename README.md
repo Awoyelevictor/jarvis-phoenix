@@ -182,6 +182,7 @@ On Android/Termux, Ollama is not assumed to be installed or available. You can u
 | `VOICEBOX_LANGUAGE` | Voicebox language code (default `en`) |
 | `VOICEBOX_INSTRUCT` | Optional delivery instruction for compatible Voicebox engines such as `qwen_custom_voice` |
 | `VOICEBOX_API_KEY` | Optional bearer token when a trusted reverse proxy protects the Voicebox API |
+| `VOICEBOX_REQUEST_TIMEOUT` | Voicebox generation/download timeout in seconds (default `180`) |
 | `USE_QWEN_TTS` | Enable the legacy remote Qwen3-TTS voice engine (`true`/`false`) |
 | `ULTRON_VOICE_API_URL` | Base HTTPS URL of the Qwen voice API (keep credentials out of the URL) |
 | `ULTRON_VOICE_API_PATH` | Speech route; use `/synthesize` for the Colab wrapper or `/v1/audio/speech` for ULTRON-VOICE-ENGINE |
