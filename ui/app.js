@@ -576,7 +576,14 @@ function startFallbackRecording() {
       rms = Math.sqrt(sum / samples.length);
     }
     const now = Date.now();
-    if (rms > 0.018) {
+    // Do not transcribe ULTRON's own TTS or capture while a command is being
+    // submitted. The same microphone remains open for the next user turn.
+    if (voiceOutputActive || chatBusy || busy) {
+      document.documentElement.style.setProperty("--voice-energy", "0");
+      vadFrame = requestAnimationFrame(tick);
+      return;
+    }
+    if (rms > 0.012) {
       vadSpeechStarted = true; vadSilenceAt = 0;
       if (!mediaRecorder) {
         recordedChunks = [];
