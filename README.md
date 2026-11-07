@@ -10,15 +10,15 @@ ULTRON is the user-facing assistant built in this repository. It combines a brow
 
 - Voice-first browser interface with a reactive ULTRON core.
 - Cloud chat through one configured OpenAI-compatible endpoint at a time (for example OpenRouter or Gemini).
-- OpenRouter Whisper handles microphone speech-to-text through the server-side audio transcription API.
+- Google Gemini audio transcription handles microphone speech-to-text through the server-side audio transcription API.
 - ElevenLabs handles all spoken responses; Gemini, Qwen/Colab, and OpenRouter TTS are not used in this voice path.
 - Android and desktop use the same MediaRecorder capture path, avoiding dependence on browser-native speech recognition.
-- Voice configuration uses the existing `OPENROUTER_API_KEY` plus `ELEVENLABS_API_KEY`. Optional model/voice overrides: `ULTRON_STT_MODEL`, `ELEVENLABS_MODEL_ID`, and `ELEVENLABS_VOICE_ID`.
+- Voice configuration uses the existing `OPENROUTER_API_KEY` plus `ELEVENLABS_API_KEY`. Optional model/voice overrides: `ULTRON_GEMINI_STT_MODEL`, `ELEVENLABS_MODEL_ID`, and `ELEVENLABS_VOICE_ID`.
 - Local SQLite memory; optional, explicitly approved Supabase memory sync.
 - Session-based voice recognition and interruption where supported by the browser.
 - Runs locally on Android through Termux or on a computer with Python.
 
-**Provider routing note:** Chat uses the configured cloud provider (OpenRouter is recommended) with optional Ollama as a local fallback. Voice input uses OpenRouter Whisper and voice output uses ElevenLabs. Both are usage-metered services and may incur charges; they are not unlimited. If either provider is unavailable or out of credits, ULTRON will show the provider error rather than silently switching to Gemini.
+**Provider routing note:** Chat uses the configured cloud provider (OpenRouter is recommended) with optional Ollama as a local fallback. Voice input uses Google Gemini audio transcription and voice output uses ElevenLabs. Both are usage-metered services and may incur charges; they are not unlimited. If either provider is unavailable or out of credits, ULTRON will show the provider error rather than silently switching to Gemini.
 
 ## Quick start
 
@@ -51,15 +51,15 @@ Linux, macOS, and Termux:
 export OPENROUTER_API_KEY="YOUR_OPENROUTER_API_KEY"
 export PHOENIX_CLOUD_BASE_URL="https://openrouter.ai/api/v1"
 export PHOENIX_CLOUD_MODEL="openrouter/free"
-# OpenRouter Whisper model (default: openai/whisper-1)
-export ULTRON_STT_MODEL="openai/whisper-1"
+# Google Gemini audio transcription model (default: openai/whisper-1)
+export ULTRON_GEMINI_STT_MODEL="openai/whisper-1"
 # ElevenLabs speech output
 export ELEVENLABS_API_KEY="YOUR_ELEVENLABS_API_KEY"
 export ELEVENLABS_VOICE_ID="pNInz6obpgDQGcFmaJgB"
 export ELEVENLABS_MODEL_ID="eleven_turbo_v2_5"
 ```
 
-**Optional: Gemini chat only** (voice still requires OpenRouter Whisper + ElevenLabs):
+**Optional: Gemini chat only** (voice still requires Google Gemini audio transcription + ElevenLabs):
 
 Linux, macOS, and Termux:
 ```bash
@@ -68,7 +68,7 @@ export PHOENIX_CLOUD_BASE_URL="https://generativelanguage.googleapis.com/v1beta/
 export PHOENIX_CLOUD_MODEL="gemini-3.8-flash"
 ```
 
-OpenRouter Whisper transcription and ElevenLabs speech generation are separate paid/usage-metered services. Gemini can still be selected for text chat, but it is not used for microphone transcription or voice output.
+Google Gemini audio transcription transcription and ElevenLabs speech generation are separate paid/usage-metered services. Gemini can still be selected for text chat, but it is not used for microphone transcription or voice output.
 
 ### 3. Start ULTRON
 
@@ -179,7 +179,7 @@ On Android/Termux, Ollama is not assumed to be installed or available. You can u
 | `PHOENIX_TTS_VOICE` | Voice ID (OpenRouter default: `rex`; Gemini default: `Algenib`) |
 | `PHOENIX_TTS_STYLE` | Natural-language Gemini voice direction |
 | `ULTRON_ENABLE_CLOUD_TRANSCRIPTION` | Explicitly enable cloud speech-to-text (true/false, default false) |
-| `ULTRON_STT_MODEL` | OpenRouter transcription model (default openai/whisper-1) |
+| `ULTRON_GEMINI_STT_MODEL` | OpenRouter transcription model (default openai/whisper-1) |
 | `USE_QWEN_TTS` | Enable the remote Qwen3-TTS voice engine (`true`/`false`) |
 | `ULTRON_VOICE_API_URL` | Base HTTPS URL of the Qwen voice API (keep credentials out of the URL) |
 | `ULTRON_VOICE_API_PATH` | Speech route; use `/synthesize` for the Colab wrapper or `/v1/audio/speech` for ULTRON-VOICE-ENGINE |
