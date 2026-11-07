@@ -11,7 +11,8 @@ ULTRON is the user-facing assistant built in this repository. It combines a brow
 - Voice-first browser interface with a reactive ULTRON core.
 - Cloud chat through one configured OpenAI-compatible endpoint at a time (for example OpenRouter or Gemini).
 - OpenRouter Grok Voice TTS (`rex`) when OpenRouter is selected; Gemini TTS remains available for Gemini-only setups.
-- Browser-native continuous speech recognition with interruption support; no paid STT API request is used by the main voice path.
+- Android voice input uses MediaRecorder with server-side transcription; desktop browsers use native speech recognition where available.
+- Cloud transcription is disabled by default to prevent unexpected charges. Enable ULTRON_ENABLE_CLOUD_TRANSCRIPTION=true only after approving provider usage. OpenRouter uses ULTRON_STT_MODEL (default openai/whisper-1) and the existing server-side OpenRouter key.
 - Local SQLite memory; optional, explicitly approved Supabase memory sync.
 - Session-based voice recognition and interruption where supported by the browser.
 - Runs locally on Android through Termux or on a computer with Python.
@@ -63,7 +64,7 @@ export PHOENIX_CLOUD_BASE_URL="https://generativelanguage.googleapis.com/v1beta/
 export PHOENIX_CLOUD_MODEL="gemini-3.8-flash"
 ```
 
-The same OpenRouter key is used for chat and Grok TTS; TTS has separate usage billing. Browser speech recognition runs in the browser and does not call the paid transcription endpoint. For Gemini chat + Gemini TTS, the same Gemini key can be used for both.
+The same OpenRouter key is used for chat, Grok TTS, and (when explicitly enabled) Whisper transcription. TTS and transcription may incur separate usage charges. For Gemini chat + Gemini TTS, the same Gemini key can be used for both; Gemini transcription is also separately gated.
 
 ### 3. Start ULTRON
 
@@ -173,6 +174,8 @@ On Android/Termux, Ollama is not assumed to be installed or available. You can u
 | `PHOENIX_TTS_MODEL` | TTS model (OpenRouter default: `x-ai/grok-voice-tts-1.0`; Gemini default: `gemini-3.8-flash-tts`) |
 | `PHOENIX_TTS_VOICE` | Voice ID (OpenRouter default: `rex`; Gemini default: `Algenib`) |
 | `PHOENIX_TTS_STYLE` | Natural-language Gemini voice direction |
+| `ULTRON_ENABLE_CLOUD_TRANSCRIPTION` | Explicitly enable cloud speech-to-text (true/false, default false) |
+| `ULTRON_STT_MODEL` | OpenRouter transcription model (default openai/whisper-1) |
 | `USE_QWEN_TTS` | Enable the remote Qwen3-TTS voice engine (`true`/`false`) |
 | `ULTRON_VOICE_API_URL` | Base HTTPS URL of the Qwen voice API (keep credentials out of the URL) |
 | `ULTRON_VOICE_API_PATH` | Speech route; use `/synthesize` for the Colab wrapper or `/v1/audio/speech` for ULTRON-VOICE-ENGINE |
