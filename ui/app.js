@@ -218,7 +218,7 @@ function stopUltronSpeech() {
 }
 function createRecognition() {
   recognition = new SpeechRecognition();
-  recognition.lang = "en-NG";
+  recognition.lang = "en-US";
   recognition.continuous = true;
   recognition.interimResults = true;
   recognition.maxAlternatives = 1;
