@@ -93,7 +93,8 @@ function openDiagnostics() {
   add("VOICE / TTS",status.voice_ready ? (status.voice_provider || "Configured") + " — " + (status.tts_model || "model not reported") + " / " + (status.tts_voice || "voice not reported") : "Not configured or unavailable");
   add("LOCAL MEMORY",status.local_memory ? "Active" : "Unavailable");
   add("CLOUD MEMORY",status.cloud_memory ? "Configured" : "Not configured (local memory remains available)");
-  add("MICROPHONE",sessionActive ? (recorderFallback ? "Active — direct recording fallback" : "Voice session active") : "Not currently active");
+  add("MICROPHONE",sessionActive ? (recorderFallback ? "Active — recording and transcription mode" : "Voice session active") : "Not currently active");
+  add("VOICE INPUT PATH",recorderFallback ? "MediaRecorder → server transcription → AI chat" : "Browser speech recognition → AI chat");
   add("SERVER", "Local ULTRON API: " + location.origin);
   content.replaceChildren();
   for (const row of rows) {
@@ -294,20 +295,16 @@ function startListening() {
   }
 }
 async function activateRecorderFallback(cause) {
-  if (!sessionActive) return;
+  if (!sessionActive || !microphoneStream) return;
   try { recognition?.abort(); } catch {}
   recognition = null;
-  recorderFallback = false;
-  sessionActive = false;
-  microphoneStream?.getTracks().forEach(track => track.stop());
-  microphoneStream = null;
-  micAudioSource?.disconnect(); micAudioSource = null;
+  recorderFallback = true;
+  clearTimeout(recognitionStartTimer);
+  logEvent("Switching to microphone recording fallback");
+  const detail = cause?.message || "Using the compatible microphone recording path.";
+  setMode("listening", "LISTENING", "Microphone is active. Speak naturally, then pause briefly so ULTRON can process your command.");
   updateControls();
-  logEvent("Browser speech recognition unavailable; paid transcription fallback disabled");
-  const detail = cause?.message || "This browser does not expose SpeechRecognition.";
-  const message = "ULTRON uses browser speech recognition to avoid paid transcription charges. " + detail + " No paid transcription request was sent.";
-  toast(message);
-  setMode("error", "BROWSER SPEECH SERVICE UNAVAILABLE", detail + " No paid transcription request was sent.");
+  startFallbackRecording();
 }
 function addMessage(role, text, pending = false) {
   const feed = $("chat-feed");
@@ -504,14 +501,21 @@ async function startSession() {
       animateAudio();
     } catch (audioError) { logEvent("Audio visualizer deferred until interaction"); }
     if (!sessionActive) return;
-    if (SpeechRecognition) {
+    const androidBrowser = /Android/i.test(navigator.userAgent);
+    if (SpeechRecognition && !androidBrowser) {
       createRecognition();
       recorderFallback = false;
       logEvent("Browser speech recognition requested");
       startListening();
       return;
     }
-    await activateRecorderFallback();
+    // Android Chrome can expose SpeechRecognition while its native service
+    // refuses to deliver transcripts. Use one microphone capture API only:
+    // MediaRecorder + the server transcription route.
+    logEvent(androidBrowser
+      ? "Android detected; using MediaRecorder transcription path"
+      : "SpeechRecognition unavailable; using MediaRecorder transcription path");
+    await activateRecorderFallback(new Error("Using the compatible recording path."));
   } catch (error) {
     sessionActive = false;
     microphoneStream?.getTracks().forEach(track => track.stop());
