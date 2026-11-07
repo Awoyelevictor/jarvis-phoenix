@@ -106,8 +106,8 @@ def make_handler(assistant: Assistant):
                     "name": "ULTRON",
                     "providers": providers,
                     "cloud_model": assistant.settings.cloud_model,
-                    "tts_model": assistant.settings.tts_model,
-                    "tts_voice": assistant.settings.tts_voice,
+                    "tts_model": (assistant.settings.voicebox_engine if (assistant.settings.voicebox_api_url and assistant.settings.voicebox_profile_id) else assistant.settings.tts_model),
+                    "tts_voice": ("Voicebox profile" if (assistant.settings.voicebox_api_url and assistant.settings.voicebox_profile_id) else assistant.settings.tts_voice),
                     "voice_provider": (
                         "Voicebox"
                         if (assistant.settings.voicebox_api_url and assistant.settings.voicebox_profile_id)
