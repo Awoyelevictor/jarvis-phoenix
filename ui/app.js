@@ -95,6 +95,7 @@ function openDiagnostics() {
   add("CLOUD MEMORY",status.cloud_memory ? "Configured" : "Not configured (local memory remains available)");
   add("MICROPHONE",sessionActive ? (recorderFallback ? "Active — recording and transcription mode" : "Voice session active") : "Not currently active");
   add("VOICE INPUT PATH",recorderFallback ? "MediaRecorder → server transcription → AI chat" : "Browser speech recognition → AI chat");
+  add("CLOUD TRANSCRIPTION",status.transcription_ready ? (status.transcription_provider || "Configured") : "Disabled — protected from unexpected API charges");
   add("SERVER", "Local ULTRON API: " + location.origin);
   content.replaceChildren();
   for (const row of rows) {
@@ -296,6 +297,18 @@ function startListening() {
 }
 async function activateRecorderFallback(cause) {
   if (!sessionActive || !microphoneStream) return;
+  if (!window.MediaRecorder || !window.requestAnimationFrame) {
+    sessionActive = false;
+    microphoneStream.getTracks().forEach(track => track.stop());
+    microphoneStream = null;
+    micAudioSource?.disconnect(); micAudioSource = null;
+    updateControls();
+    const detail = "This browser does not support the recording fallback required for reliable voice input.";
+    recordSystemError(detail, "Speech recognition");
+    setMode("error", "VOICE INPUT UNAVAILABLE", detail);
+    toast(detail);
+    return;
+  }
   try { recognition?.abort(); } catch {}
   recognition = null;
   recorderFallback = true;
@@ -502,7 +515,7 @@ async function startSession() {
     } catch (audioError) { logEvent("Audio visualizer deferred until interaction"); }
     if (!sessionActive) return;
     const androidBrowser = /Android/i.test(navigator.userAgent);
-    if (SpeechRecognition && !androidBrowser) {
+    if (SpeechRecognition && (!androidBrowser || !window.MediaRecorder)) {
       createRecognition();
       recorderFallback = false;
       logEvent("Browser speech recognition requested");
