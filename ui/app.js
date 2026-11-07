@@ -596,14 +596,27 @@ function startFallbackRecording() {
           const blob=new Blob(recordedChunks,{type:current?.mimeType||"audio/webm"}); recordedChunks=[];
           vadSpeechStarted=false; vadSilenceAt=0;
           if(!blob.size||!sessionActive){if(sessionActive)startFallbackRecording();return;}
+          let transcriptionFailed = false;
           try {
             setMode("thinking","TRANSCRIBING","I heard you. Converting your speech.");
             const audio=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]||"");reader.onerror=()=>reject(new Error("Could not read microphone audio."));reader.readAsDataURL(blob)});
             const response=await fetch("/api/transcribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({audio,mime_type:blob.type||"audio/webm"})});
             const data=await response.json(); if(!response.ok)throw new Error(data.error||"Speech transcription failed.");
             if(data.transcript?.trim())await processUtterance(data.transcript.trim());
-          } catch(error){toast(error.message||"Speech transcription failed.");logEvent("Transcription failed");}
-          finally{if(sessionActive){setMode("listening","LISTENING","I'm listening. Speak naturally; I'll detect when you finish.");startFallbackRecording();}}
+            else logEvent("No intelligible speech detected in the recording");
+          } catch(error){
+            transcriptionFailed = true;
+            logEvent("Transcription failed: " + (error.message || "unknown error"));
+            recordSystemError(error.message || "Speech transcription failed.", "Speech transcription");
+            setMode("error","TRANSCRIPTION FAILED",error.message || "Speech transcription failed. Open diagnostics for details.");
+            toast(error.message||"Speech transcription failed.");
+          }
+          finally{
+            if(sessionActive){
+              if(!transcriptionFailed && !chatBusy && !busy) setMode("listening","LISTENING","I'm listening. Speak naturally; pause briefly when your command is complete.");
+              startFallbackRecording();
+            }
+          }
         };
         mediaRecorder.start(); vadSegmentStartedAt=now;
         setMode("listening","LISTENING","I can hear you. Keep speaking; pause when you're done.");
