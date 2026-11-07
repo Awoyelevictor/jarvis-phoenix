@@ -32,6 +32,12 @@ class Settings:
     voice_api_key: str = ""
     voice_api_path: str = "/v1/audio/speech"
     use_qwen_tts: bool = False
+    voicebox_api_url: str = ""
+    voicebox_profile_id: str = ""
+    voicebox_engine: str = "kokoro"
+    voicebox_language: str = "en"
+    voicebox_instruct: str = ""
+    voicebox_api_key: str = ""
     request_timeout: float = 90.0
     conversation_history_messages: int = 20
     memory_db_path: str = ""
@@ -64,6 +70,12 @@ class Settings:
             voice_api_key=os.getenv("ULTRON_VOICE_API_KEY", ""),
             voice_api_path=os.getenv("ULTRON_VOICE_API_PATH", "/synthesize" if os.getenv("TTS_API_URL") else "/v1/audio/speech").strip() or "/synthesize",
             use_qwen_tts=os.getenv("USE_QWEN_TTS", "false").strip().lower() in {"1", "true", "yes", "on"},
+            voicebox_api_url=(os.getenv("VOICEBOX_API_URL", "") or os.getenv("ULTRON_VOICEBOX_API_URL", "")).rstrip("/"),
+            voicebox_profile_id=(os.getenv("VOICEBOX_PROFILE_ID", "") or os.getenv("ULTRON_VOICEBOX_PROFILE_ID", "")).strip(),
+            voicebox_engine=os.getenv("VOICEBOX_ENGINE", "kokoro").strip() or "kokoro",
+            voicebox_language=os.getenv("VOICEBOX_LANGUAGE", "en").strip() or "en",
+            voicebox_instruct=os.getenv("VOICEBOX_INSTRUCT", "").strip(),
+            voicebox_api_key=os.getenv("VOICEBOX_API_KEY", ""),
             request_timeout=float(os.getenv("PHOENIX_REQUEST_TIMEOUT", "90")),
             conversation_history_messages=max(2, int(os.getenv("PHOENIX_HISTORY_MESSAGES", "20"))),
             memory_db_path=os.getenv("ULTRON_MEMORY_DB", ""),
