@@ -254,3 +254,71 @@ def test_voicebox_configuration_is_read_from_environment(monkeypatch):
     assert settings.voicebox_profile_id == "profile-123"
     assert settings.voicebox_engine == "kokoro"
     assert settings.voicebox_language == "en"
+
+
+
+def test_elevenlabs_speech_returns_mp3_and_uses_api_key(monkeypatch):
+    import base64
+
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["headers"] = request.headers
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        return FakeBinaryResponse(b"fake-mp3-audio")
+
+    monkeypatch.setattr("app.speech.urlopen", fake_urlopen)
+    settings = Settings(
+        elevenlabs_api_key="eleven-test-key",
+        elevenlabs_voice_id="voice-123",
+        elevenlabs_model_id="eleven_multilingual_v2",
+    )
+    audio, mime_type = GeminiSpeechProvider(settings).synthesize("Systems online.")
+
+    assert base64.b64decode(audio) == b"fake-mp3-audio"
+    assert mime_type == "audio/mpeg"
+    assert captured["url"] == "https://api.elevenlabs.io/v1/text-to-speech/voice-123?output_format=mp3_44100_128"
+    assert captured["headers"]["Xi-api-key"] == "eleven-test-key"
+    assert captured["payload"]["text"] == "Systems online."
+    assert captured["payload"]["model_id"] == "eleven_multilingual_v2"
+
+
+def test_elevenlabs_failure_falls_back_to_gemini(monkeypatch):
+    from urllib.error import URLError
+
+    calls = {"count": 0}
+
+    def fake_urlopen(request, timeout):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise URLError("ElevenLabs unavailable")
+        return FakeResponse({
+            "candidates": [{
+                "content": {
+                    "parts": [{
+                        "inlineData": {"mimeType": "audio/wav", "data": "UklGRg=="}
+                    }]
+                }
+            }]
+        })
+
+    monkeypatch.setattr("app.speech.urlopen", fake_urlopen)
+    settings = Settings(
+        elevenlabs_api_key="eleven-test-key",
+        tts_api_key="gemini-test-key",
+    )
+    audio, mime_type = GeminiSpeechProvider(settings).synthesize("Fallback test.")
+
+    assert calls["count"] == 2
+    assert audio == "UklGRg=="
+    assert mime_type == "audio/wav"
+
+
+def test_elevenlabs_configuration_is_read_from_environment(monkeypatch):
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "test-key")
+    monkeypatch.setenv("ELEVENLABS_VOICE_ID", "voice-123")
+    settings = Settings.from_env()
+
+    assert settings.elevenlabs_api_key == "test-key"
+    assert settings.elevenlabs_voice_id == "voice-123"
