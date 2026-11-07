@@ -132,6 +132,12 @@ def make_handler(assistant: Assistant):
                     "profile_json_path": str(assistant.profile_path),
                     "cloud_memory": assistant.memory.cloud_configured,
                     "continuous_listening": True,
+                    "transcription_ready": os.getenv("ULTRON_ENABLE_CLOUD_TRANSCRIPTION", "false").strip().lower() in {"1", "true", "yes", "on"},
+                    "transcription_provider": (
+                        "OpenRouter Whisper"
+                        if "openrouter.ai" in assistant.settings.cloud_base_url
+                        else "Gemini Flash"
+                    ),
                     "speaker_recognition": False,
                 })
                 return
