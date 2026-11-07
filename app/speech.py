@@ -91,7 +91,7 @@ class GeminiSpeechProvider:
             method="POST",
         )
         try:
-            with urlopen(request, timeout=self.settings.request_timeout) as response:
+            with urlopen(request, timeout=self.settings.voicebox_request_timeout) as response:
                 result = json.loads(response.read().decode("utf-8"))
         except HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")[:1000]
@@ -166,7 +166,7 @@ class GeminiSpeechProvider:
             "language": self.settings.voicebox_language or "en",
             "engine": self.settings.voicebox_engine or "kokoro",
         }
-        if self.settings.voicebox_instruct:
+        if self.settings.voicebox_instruct and self.settings.voicebox_engine == "qwen_custom_voice":
             payload["instruct"] = self.settings.voicebox_instruct
         headers = {
             "Content-Type": "application/json",
@@ -198,7 +198,7 @@ class GeminiSpeechProvider:
             method="GET",
         )
         try:
-            with urlopen(audio_request, timeout=self.settings.request_timeout) as response:
+            with urlopen(audio_request, timeout=self.settings.voicebox_request_timeout) as response:
                 audio_bytes = response.read()
                 mime_type = response.headers.get_content_type() if hasattr(response, "headers") else "audio/wav"
         except HTTPError as exc:
