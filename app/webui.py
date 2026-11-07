@@ -116,11 +116,8 @@ def make_handler(assistant: Assistant):
                     "profile_json_path": str(assistant.profile_path),
                     "cloud_memory": assistant.memory.cloud_configured,
                     "continuous_listening": True,
-                    "transcription_ready": bool(
-                        "openrouter.ai" in assistant.settings.cloud_base_url
-                        and assistant.settings.cloud_api_key
-                    ),
-                    "transcription_provider": "OpenRouter Whisper",
+                    "transcription_ready": bool(assistant.settings.gemini_api_key),
+                    "transcription_provider": "Google Gemini",
                     "speaker_recognition": False,
                 })
                 return
