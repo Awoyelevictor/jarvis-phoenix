@@ -119,7 +119,6 @@ def make_handler(assistant: Assistant):
                     "transcription_ready": bool(
                         "openrouter.ai" in assistant.settings.cloud_base_url
                         and assistant.settings.cloud_api_key
-                        and os.getenv("ULTRON_ENABLE_CLOUD_TRANSCRIPTION", "true").strip().lower() in {"1", "true", "yes", "on"}
                     ),
                     "transcription_provider": "OpenRouter Whisper",
                     "speaker_recognition": False,
