@@ -32,6 +32,10 @@ class Settings:
     voice_api_key: str = ""
     voice_api_path: str = "/v1/audio/speech"
     use_qwen_tts: bool = False
+    elevenlabs_api_key: str = ""
+    elevenlabs_voice_id: str = "pNInz6obpgDQGcFmaJgB"
+    elevenlabs_model_id: str = "eleven_multilingual_v2"
+    elevenlabs_output_format: str = "mp3_44100_128"
     voicebox_api_url: str = ""
     voicebox_profile_id: str = ""
     voicebox_engine: str = "kokoro"
@@ -71,6 +75,10 @@ class Settings:
             voice_api_key=os.getenv("ULTRON_VOICE_API_KEY", ""),
             voice_api_path=os.getenv("ULTRON_VOICE_API_PATH", "/synthesize" if os.getenv("TTS_API_URL") else "/v1/audio/speech").strip() or "/synthesize",
             use_qwen_tts=os.getenv("USE_QWEN_TTS", "false").strip().lower() in {"1", "true", "yes", "on"},
+            elevenlabs_api_key=os.getenv("ELEVENLABS_API_KEY", "").strip(),
+            elevenlabs_voice_id=os.getenv("ELEVENLABS_VOICE_ID", "pNInz6obpgDQGcFmaJgB").strip(),
+            elevenlabs_model_id=os.getenv("ELEVENLABS_MODEL_ID", "eleven_multilingual_v2").strip(),
+            elevenlabs_output_format=os.getenv("ELEVENLABS_OUTPUT_FORMAT", "mp3_44100_128").strip(),
             voicebox_api_url=(os.getenv("VOICEBOX_API_URL", "") or os.getenv("ULTRON_VOICEBOX_API_URL", "")).rstrip("/"),
             voicebox_profile_id=(os.getenv("VOICEBOX_PROFILE_ID", "") or os.getenv("ULTRON_VOICEBOX_PROFILE_ID", "")).strip(),
             voicebox_engine=os.getenv("VOICEBOX_ENGINE", "kokoro").strip() or "kokoro",
