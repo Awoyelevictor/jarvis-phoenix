@@ -25,6 +25,7 @@ let vadFrame = 0;
 let vadSpeechStarted = false;
 let vadSilenceAt = 0;
 let vadSegmentStartedAt = 0;
+let forceTimedRecorder = false;
 let latestSystemError = null;
 let latestSystemStatus = null;
 let liveIndicatorDismissed = false;
@@ -95,8 +96,8 @@ function openDiagnostics() {
   add("LOCAL MEMORY",status.local_memory ? "Active" : "Unavailable");
   add("CLOUD MEMORY",status.cloud_memory ? "Configured" : "Not configured (local memory remains available)");
   add("MICROPHONE",sessionActive ? (recorderFallback ? "Active — recording and transcription mode" : "Voice session active") : "Not currently active");
-  add("VOICE INPUT PATH",recorderFallback ? "MediaRecorder → OpenRouter Whisper → AI chat" : "Not active");
-  add("CLOUD TRANSCRIPTION",status.transcription_ready ? (status.transcription_provider || "Configured") : "Unavailable — check OpenRouter key and server settings");
+  add("VOICE INPUT PATH",recorderFallback ? "MediaRecorder → Gemini transcription → OpenRouter AI chat" : "Not active");
+  add("CLOUD TRANSCRIPTION",status.transcription_ready ? (status.transcription_provider || "Configured") : "Unavailable — check GEMINI_API_KEY and server settings");
   add("SERVER", "Local ULTRON API: " + location.origin);
   content.replaceChildren();
   for (const row of rows) {
@@ -465,7 +466,7 @@ async function speak(text) {
       else if (!sessionActive) setMode("standby", "SYSTEM STANDBY", "Text channel active.");
     };
     setMode("speaking", "ULTRON IS SPEAKING", "Speak at any time to interrupt.");
-    $("control-caption").textContent = "GROK VOICE · MIC ACTIVE";
+    $("control-caption").textContent = "ELEVENLABS VOICE · MIC ACTIVE";
     source.start();
     animateAudio();
   } catch (error) {
@@ -491,11 +492,12 @@ async function startSession() {
       throw new Error("This browser does not support microphone recording. Update Chrome and allow microphone access.");
     }
     sessionActive = true;
+    forceTimedRecorder = false;
     updateControls();
     setMode("connecting","REQUESTING MICROPHONE","Opening the phone microphone…");
     logEvent("Starting direct microphone capture; browser speech recognition is bypassed.");
     // Use one predictable path on Android: capture audio, send it to
-    // OpenRouter Whisper, then send the transcript to ULTRON's chat model.
+    // Google Gemini, then send the transcript to ULTRON's chat model.
     microphoneStream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
     });
@@ -515,7 +517,7 @@ async function startSession() {
     } catch (audioError) {
       logEvent("Audio visualizer unavailable: " + (audioError.message || "unknown error"));
     }
-    await activateRecorderFallback(new Error("OpenRouter Whisper microphone mode is active."));
+    await activateRecorderFallback(new Error("Gemini microphone transcription mode is active."));
   } catch (error) {
     sessionActive = false;
     try { recognition?.abort(); } catch {}
@@ -549,70 +551,152 @@ async function startSession() {
 }
 function startFallbackRecording() {
   if (!sessionActive || !microphoneStream || vadFrame) return;
+
+  const transcribeRecordedBlob = async (blob) => {
+    if (!blob?.size || !sessionActive) return;
+    let transcriptionFailed = false;
+    try {
+      setMode("thinking", "TRANSCRIBING", "I heard you. Gemini is converting your speech.");
+      logEvent("Audio segment captured; sending to Gemini transcription");
+      const audio = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+        reader.onerror = () => reject(new Error("Could not read microphone audio."));
+        reader.readAsDataURL(blob);
+      });
+      if (!audio) throw new Error("The microphone recording was empty.");
+      const response = await fetch("/api/transcribe", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({audio, mime_type: blob.type || "audio/webm"})
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Gemini speech transcription failed.");
+      if (data.transcript?.trim()) {
+        logEvent("Gemini transcript received; sending message to ULTRON chat");
+        await processUtterance(data.transcript.trim());
+      } else {
+        logEvent("Gemini returned no intelligible speech for this audio segment");
+      }
+    } catch (error) {
+      transcriptionFailed = true;
+      logEvent("Transcription failed: " + (error.message || "unknown error"));
+      recordSystemError(error.message || "Speech transcription failed.", "Gemini speech transcription");
+      setMode("error", "TRANSCRIPTION FAILED", error.message || "Speech transcription failed. Open diagnostics for details.");
+      toast(error.message || "Speech transcription failed.");
+    } finally {
+      if (sessionActive && !chatBusy && !busy && !transcriptionFailed) {
+        setMode("listening", "LISTENING", "I'm listening. Speak naturally.");
+      }
+    }
+  };
+
+  const hasAnalyser = !forceTimedRecorder && Boolean(analyser && audioContext && audioContext.state === "running");
   const samples = new Float32Array(analyser?.fftSize || 2048);
+
+  // If Android suspends or refuses the Web Audio analyser, still capture audio.
+  // This timed MediaRecorder path deliberately does not depend on RMS/VAD.
+  if (!hasAnalyser) {
+    logEvent("Audio analyser unavailable; using timed microphone recording fallback");
+    try {
+      const mimeType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"]
+        .find(type => MediaRecorder.isTypeSupported(type));
+      mediaRecorder = new MediaRecorder(microphoneStream, mimeType ? {mimeType} : undefined);
+      recordedChunks = [];
+      mediaRecorder.ondataavailable = event => { if (event.data?.size) recordedChunks.push(event.data); };
+      mediaRecorder.onerror = event => {
+        const message = event.error?.message || "Microphone recording failed.";
+        recordSystemError(message, "MediaRecorder");
+        toast(message);
+      };
+      mediaRecorder.onstop = async () => {
+        const current = mediaRecorder;
+        mediaRecorder = null;
+        const blob = new Blob(recordedChunks, {type: current?.mimeType || "audio/webm"});
+        recordedChunks = [];
+        if (!sessionActive) return;
+        await transcribeRecordedBlob(blob);
+        if (sessionActive) startFallbackRecording();
+      };
+      mediaRecorder.start();
+      setMode("listening", "LISTENING", "Microphone is recording. Speak, then pause briefly.");
+      vadFrame = requestAnimationFrame(() => {
+        vadFrame = 0;
+        if (!sessionActive || !mediaRecorder || mediaRecorder.state !== "recording") return;
+        // A short bounded segment keeps requests small and prevents a dead VAD
+        // from silently leaving the microphone open without sending anything.
+        setTimeout(() => {
+          if (sessionActive && mediaRecorder?.state === "recording") {
+            try { mediaRecorder.stop(); } catch {}
+          }
+        }, 6500);
+      });
+    } catch (error) {
+      recordSystemError(error.message || "Could not start microphone recording.", "MediaRecorder");
+      setMode("error", "RECORDING FAILED", error.message || "Could not start microphone recording.");
+      toast(error.message || "Could not start microphone recording.");
+    }
+    return;
+  }
+
+  const noSignalStartedAt = Date.now();
   const tick = () => {
     if (!sessionActive || !microphoneStream) { vadFrame = 0; return; }
     let rms = 0;
-    if (analyser) {
-      analyser.getFloatTimeDomainData(samples);
-      let sum = 0;
-      for (const value of samples) sum += value * value;
-      rms = Math.sqrt(sum / samples.length);
-    }
+    analyser.getFloatTimeDomainData(samples);
+    let sum = 0;
+    for (const value of samples) sum += value * value;
+    rms = Math.sqrt(sum / samples.length);
     const now = Date.now();
-    // Do not transcribe ULTRON's own TTS or capture while a command is being
-    // submitted. The same microphone remains open for the next user turn.
+
     if (voiceOutputActive || chatBusy || busy) {
       document.documentElement.style.setProperty("--voice-energy", "0");
       vadFrame = requestAnimationFrame(tick);
       return;
     }
-    if (rms > 0.012) {
-      vadSpeechStarted = true; vadSilenceAt = 0;
+    if (!mediaRecorder && rms < 0.001 && now - noSignalStartedAt > 3000) {
+      logEvent("Microphone analyser detected no usable input; switching to timed recording fallback");
+      forceTimedRecorder = true;
+      cancelAnimationFrame(vadFrame);
+      vadFrame = 0;
+      startFallbackRecording();
+      return;
+    }
+    if (rms > 0.006) {
+      vadSpeechStarted = true;
+      vadSilenceAt = 0;
       if (!mediaRecorder) {
         recordedChunks = [];
-        const mimeType = ["audio/webm;codecs=opus","audio/webm","audio/mp4"].find(type => MediaRecorder.isTypeSupported(type));
-        mediaRecorder = new MediaRecorder(microphoneStream,mimeType?{mimeType}:undefined);
-        mediaRecorder.ondataavailable = event => { if(event.data?.size) recordedChunks.push(event.data); };
-        mediaRecorder.onerror = () => toast("Microphone recording failed.");
+        const mimeType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"]
+          .find(type => MediaRecorder.isTypeSupported(type));
+        mediaRecorder = new MediaRecorder(microphoneStream, mimeType ? {mimeType} : undefined);
+        mediaRecorder.ondataavailable = event => { if (event.data?.size) recordedChunks.push(event.data); };
+        mediaRecorder.onerror = event => toast(event.error?.message || "Microphone recording failed.");
         mediaRecorder.onstop = async () => {
-          const current=mediaRecorder; mediaRecorder=null;
-          const blob=new Blob(recordedChunks,{type:current?.mimeType||"audio/webm"}); recordedChunks=[];
-          vadSpeechStarted=false; vadSilenceAt=0;
-          if(!blob.size||!sessionActive){if(sessionActive)startFallbackRecording();return;}
-          let transcriptionFailed = false;
-          try {
-            setMode("thinking","TRANSCRIBING","I heard you. Converting your speech.");
-            const audio=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]||"");reader.onerror=()=>reject(new Error("Could not read microphone audio."));reader.readAsDataURL(blob)});
-            const response=await fetch("/api/transcribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({audio,mime_type:blob.type||"audio/webm"})});
-            const data=await response.json(); if(!response.ok)throw new Error(data.error||"Speech transcription failed.");
-            if(data.transcript?.trim())await processUtterance(data.transcript.trim());
-            else logEvent("No intelligible speech detected in the recording");
-          } catch(error){
-            transcriptionFailed = true;
-            logEvent("Transcription failed: " + (error.message || "unknown error"));
-            recordSystemError(error.message || "Speech transcription failed.", "Speech transcription");
-            setMode("error","TRANSCRIPTION FAILED",error.message || "Speech transcription failed. Open diagnostics for details.");
-            toast(error.message||"Speech transcription failed.");
-          }
-          finally{
-            if(sessionActive){
-              if(!transcriptionFailed && !chatBusy && !busy) setMode("listening","LISTENING","I'm listening. Speak naturally; pause briefly when your command is complete.");
-              startFallbackRecording();
-            }
-          }
+          const current = mediaRecorder;
+          mediaRecorder = null;
+          const blob = new Blob(recordedChunks, {type: current?.mimeType || "audio/webm"});
+          recordedChunks = [];
+          vadSpeechStarted = false;
+          vadSilenceAt = 0;
+          if (!sessionActive) return;
+          await transcribeRecordedBlob(blob);
+          if (sessionActive) startFallbackRecording();
         };
-        mediaRecorder.start(); vadSegmentStartedAt=now;
-        setMode("listening","LISTENING","I can hear you. Keep speaking; pause when you're done.");
+        mediaRecorder.start();
+        vadSegmentStartedAt = now;
+        setMode("listening", "LISTENING", "I can hear you. Keep speaking; pause when you're done.");
       }
-    } else if(mediaRecorder?.state==="recording"&&vadSpeechStarted) {
-      if(!vadSilenceAt)vadSilenceAt=now;
-      if(now-vadSilenceAt>1250||now-vadSegmentStartedAt>15000){try{mediaRecorder.stop()}catch{}}
+    } else if (mediaRecorder?.state === "recording" && vadSpeechStarted) {
+      if (!vadSilenceAt) vadSilenceAt = now;
+      if (now - vadSilenceAt > 1100 || now - vadSegmentStartedAt > 12000) {
+        try { mediaRecorder.stop(); } catch {}
+      }
     }
-    document.documentElement.style.setProperty("--voice-energy",Math.min(1,rms*8).toFixed(3));
-    vadFrame=requestAnimationFrame(tick);
+    document.documentElement.style.setProperty("--voice-energy", Math.min(1, rms * 8).toFixed(3));
+    vadFrame = requestAnimationFrame(tick);
   };
-  vadFrame=requestAnimationFrame(tick);
+  vadFrame = requestAnimationFrame(tick);
 }
 async function toggleHeadVoice(){
   $("ultronAssistantConsole")?.classList.add("open");
