@@ -66,7 +66,7 @@ class Settings:
             elevenlabs_api_key=os.getenv("ELEVENLABS_API_KEY", "").strip(),
             elevenlabs_voice_id=os.getenv("ELEVENLABS_VOICE_ID", DEFAULT_ELEVENLABS_VOICE_ID).strip(),
             elevenlabs_model_id=os.getenv("ELEVENLABS_MODEL_ID", DEFAULT_ELEVENLABS_MODEL).strip(),
-            transcription_model=os.getenv("ULTRON_GEMINI_STT_MODEL", DEFAULT_TRANSCRIPTION_MODEL).strip() or DEFAULT_TRANSCRIPTION_MODEL,
+            transcription_model=os.getenv("ULTRON_GEMINI_STT_MODEL", os.getenv("PHOENIX_TRANSCRIPTION_MODEL", DEFAULT_TRANSCRIPTION_MODEL)).strip() or DEFAULT_TRANSCRIPTION_MODEL,
             tts_model=os.getenv("PHOENIX_TTS_MODEL", DEFAULT_OPENROUTER_TTS_MODEL if "openrouter.ai" in cloud_base_url else DEFAULT_TTS_MODEL),
             tts_voice=os.getenv("PHOENIX_TTS_VOICE", DEFAULT_OPENROUTER_TTS_VOICE if "openrouter.ai" in cloud_base_url else "Algenib"),
             tts_style=os.getenv("PHOENIX_TTS_STYLE", DEFAULT_TTS_STYLE),
