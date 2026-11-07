@@ -12,7 +12,9 @@ DEFAULT_OPENROUTER_MODEL = "openrouter/free"
 DEFAULT_TTS_MODEL = "gemini-3.8-flash-tts"
 DEFAULT_OPENROUTER_TTS_MODEL = "x-ai/grok-voice-tts-1.0"
 DEFAULT_OPENROUTER_TTS_VOICE = "rex"
-DEFAULT_TRANSCRIPTION_MODEL = DEFAULT_GEMINI_MODEL
+DEFAULT_TRANSCRIPTION_MODEL = "openai/whisper-1"
+DEFAULT_ELEVENLABS_MODEL = "eleven_turbo_v2_5"
+DEFAULT_ELEVENLABS_VOICE_ID = "pNInz6obpgDQGcFmaJgB"
 DEFAULT_TTS_STYLE = "Speak in a deep, resonant masculine voice with a controlled, slightly gravelly rasp and a subtle metallic, synthetic edge. The voice should feel intelligent, composed, authoritative, and quietly intimidating, like a sophisticated machine speaking through a natural human voice. Use measured pacing, deliberate pauses, precise American English pronunciation, and steady low-register delivery. Keep the sound rich and grounded rather than exaggerated, harsh, shouted, or cartoonishly robotic. Preserve natural conversational flow while maintaining a cool, calculating confidence."
 
 
@@ -24,6 +26,9 @@ class Settings:
     cloud_api_key: str = ""
     cloud_model: str = DEFAULT_GEMINI_MODEL
     tts_api_key: str = ""
+    elevenlabs_api_key: str = ""
+    elevenlabs_voice_id: str = DEFAULT_ELEVENLABS_VOICE_ID
+    elevenlabs_model_id: str = DEFAULT_ELEVENLABS_MODEL
     transcription_model: str = DEFAULT_TRANSCRIPTION_MODEL
     tts_model: str = DEFAULT_TTS_MODEL
     tts_voice: str = "Algenib"
@@ -56,7 +61,10 @@ class Settings:
                 DEFAULT_OPENROUTER_MODEL if "openrouter.ai" in cloud_base_url else DEFAULT_GEMINI_MODEL,
             ),
             tts_api_key=os.getenv("PHOENIX_TTS_API_KEY", "") or os.getenv("GEMINI_API_KEY", ""),
-            transcription_model=os.getenv("PHOENIX_TRANSCRIPTION_MODEL", DEFAULT_TRANSCRIPTION_MODEL).strip() or DEFAULT_TRANSCRIPTION_MODEL,
+            elevenlabs_api_key=os.getenv("ELEVENLABS_API_KEY", "").strip(),
+            elevenlabs_voice_id=os.getenv("ELEVENLABS_VOICE_ID", DEFAULT_ELEVENLABS_VOICE_ID).strip(),
+            elevenlabs_model_id=os.getenv("ELEVENLABS_MODEL_ID", DEFAULT_ELEVENLABS_MODEL).strip(),
+            transcription_model=os.getenv("ULTRON_STT_MODEL", os.getenv("PHOENIX_TRANSCRIPTION_MODEL", DEFAULT_TRANSCRIPTION_MODEL)).strip() or DEFAULT_TRANSCRIPTION_MODEL,
             tts_model=os.getenv("PHOENIX_TTS_MODEL", DEFAULT_OPENROUTER_TTS_MODEL if "openrouter.ai" in cloud_base_url else DEFAULT_TTS_MODEL),
             tts_voice=os.getenv("PHOENIX_TTS_VOICE", DEFAULT_OPENROUTER_TTS_VOICE if "openrouter.ai" in cloud_base_url else "Algenib"),
             tts_style=os.getenv("PHOENIX_TTS_STYLE", DEFAULT_TTS_STYLE),
