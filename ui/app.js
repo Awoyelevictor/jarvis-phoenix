@@ -96,7 +96,7 @@ function openDiagnostics() {
   add("CLOUD MEMORY",status.cloud_memory ? "Configured" : "Not configured (local memory remains available)");
   add("MICROPHONE",sessionActive ? (recorderFallback ? "Active — recording and transcription mode" : "Voice session active") : "Not currently active");
   add("VOICE INPUT PATH",recorderFallback ? "MediaRecorder → Gemini transcription → OpenRouter AI chat" : "Not active");
-  add("CLOUD TRANSCRIPTION",status.transcription_ready ? (status.transcription_provider || "Configured") : "Unavailable — check OpenRouter key and server settings");
+  add("CLOUD TRANSCRIPTION",status.transcription_ready ? (status.transcription_provider || "Configured") : "Unavailable — check GEMINI_API_KEY and server settings");
   add("SERVER", "Local ULTRON API: " + location.origin);
   content.replaceChildren();
   for (const row of rows) {
@@ -495,7 +495,7 @@ async function startSession() {
     setMode("connecting","REQUESTING MICROPHONE","Opening the phone microphone…");
     logEvent("Starting direct microphone capture; browser speech recognition is bypassed.");
     // Use one predictable path on Android: capture audio, send it to
-    // OpenRouter Whisper, then send the transcript to ULTRON's chat model.
+    // Google Gemini, then send the transcript to ULTRON's chat model.
     microphoneStream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
     });
