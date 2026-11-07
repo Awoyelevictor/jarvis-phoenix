@@ -17,30 +17,91 @@ class GeminiSpeechProvider:
         self.settings = settings
 
     def transcribe(self, audio_base64: str, mime_type: str) -> str:
-        """Transcribe a browser-recorded microphone clip with Gemini Flash."""
-        api_key=self.settings.tts_api_key
-        if not api_key: raise ProviderError("Gemini API key is not configured for microphone transcription.")
-        if not mime_type.startswith("audio/"): raise ProviderError("Unsupported microphone audio format.")
-        try: audio_bytes=base64.b64decode(audio_base64,validate=True)
-        except (ValueError,TypeError) as exc: raise ProviderError("Microphone audio is not valid base64 data.") from exc
-        if not audio_bytes or len(audio_bytes)>10*1024*1024: raise ProviderError("Microphone recording is empty or too large.")
-        payload={"contents":[{"role":"user","parts":[
-            {"text":"Transcribe the speech in this audio. Return only the exact spoken words, without commentary. If no speech is intelligible, return an empty response."},
-            {"inlineData":{"mimeType":mime_type,"data":audio_base64}}
-        ]}],"generationConfig":{"temperature":0}}
-        model = (self.settings.transcription_model or DEFAULT_TRANSCRIPTION_MODEL).strip()
-        request=Request(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-            data=json.dumps(payload).encode("utf-8"),headers={"Content-Type":"application/json","x-goog-api-key":api_key},method="POST")
-        try:
-            with urlopen(request,timeout=self.settings.request_timeout) as response: result=json.loads(response.read().decode("utf-8"))
-        except HTTPError as exc:
-            detail=exc.read().decode("utf-8",errors="replace")[:1000]
-            raise ProviderError(f"Gemini transcription failed (HTTP {exc.code}): {detail}") from exc
-        except (URLError,TimeoutError,OSError,ValueError) as exc: raise ProviderError(f"Gemini transcription connection failed: {exc}") from exc
-        try: return " ".join(part.get("text","") for part in result["candidates"][0]["content"]["parts"]).strip()
-        except (KeyError,IndexError,TypeError) as exc:
-            raise ProviderError(result.get("error",{}).get("message","Gemini returned no transcript.")) from exc
+        """Transcribe a browser-recorded clip through the configured cloud provider."""
+        import os
 
+        if os.getenv("ULTRON_ENABLE_CLOUD_TRANSCRIPTION", "false").strip().lower() not in {"1", "true", "yes", "on"}:
+            raise ProviderError(
+                "Cloud speech transcription is disabled to prevent unexpected API charges. "
+                "Enable ULTRON_ENABLE_CLOUD_TRANSCRIPTION=true after approving transcription usage."
+            )
+        if not mime_type.startswith("audio/"):
+            raise ProviderError("Unsupported microphone audio format.")
+        try:
+            audio_bytes = base64.b64decode(audio_base64, validate=True)
+        except (ValueError, TypeError) as exc:
+            raise ProviderError("Microphone audio is not valid base64 data.") from exc
+        if not audio_bytes or len(audio_bytes) > 10 * 1024 * 1024:
+            raise ProviderError("Microphone recording is empty or too large.")
+
+        if "openrouter.ai" in self.settings.cloud_base_url:
+            api_key = self.settings.cloud_api_key
+            if not api_key:
+                raise ProviderError("OpenRouter API key is not configured for speech transcription.")
+            audio_format = {
+                "audio/webm": "webm", "audio/mp4": "m4a", "audio/mpeg": "mp3",
+                "audio/wav": "wav", "audio/ogg": "ogg", "audio/flac": "flac",
+                "audio/aac": "aac",
+            }.get(mime_type.split(";")[0].strip().lower(), "webm")
+            model = os.getenv("ULTRON_STT_MODEL", "openai/whisper-1").strip()
+            payload = {
+                "model": model,
+                "input_audio": {"data": audio_base64, "format": audio_format},
+                "language": "en",
+            }
+            request = Request(
+                "https://openrouter.ai/api/v1/audio/transcriptions",
+                data=json.dumps(payload).encode("utf-8"),
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {api_key}",
+                    "HTTP-Referer": "https://github.com/Awoyelevictor/jarvis-phoenix",
+                    "X-Title": "ULTRON",
+                },
+                method="POST",
+            )
+            try:
+                with urlopen(request, timeout=self.settings.request_timeout) as response:
+                    result = json.loads(response.read().decode("utf-8"))
+            except HTTPError as exc:
+                detail = exc.read().decode("utf-8", errors="replace")[:1000]
+                raise ProviderError(f"OpenRouter transcription failed (HTTP {exc.code}): {detail}") from exc
+            except (URLError, TimeoutError, OSError, ValueError) as exc:
+                raise ProviderError(f"OpenRouter transcription connection failed: {exc}") from exc
+            transcript = result.get("text")
+            if not isinstance(transcript, str):
+                raise ProviderError("OpenRouter returned no transcript.")
+            usage = result.get("usage") or {}
+            if usage.get("cost") is not None:
+                print("[ULTRON] STT usage reported by provider: $" + str(usage["cost"]), flush=True)
+            return transcript.strip()
+
+        api_key = self.settings.tts_api_key or self.settings.cloud_api_key
+        if not api_key:
+            raise ProviderError("Gemini API key is not configured for microphone transcription.")
+        payload = {"contents": [{"role": "user", "parts": [
+            {"text": "Transcribe the speech in this audio. Return only the exact spoken words, without commentary. If no speech is intelligible, return an empty response."},
+            {"inlineData": {"mimeType": mime_type, "data": audio_base64}},
+        ]}], "generationConfig": {"temperature": 0}}
+        model = (self.settings.transcription_model or DEFAULT_TRANSCRIPTION_MODEL).strip()
+        request = Request(
+            f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=self.settings.request_timeout) as response:
+                result = json.loads(response.read().decode("utf-8"))
+        except HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")[:1000]
+            raise ProviderError(f"Gemini transcription failed (HTTP {exc.code}): {detail}") from exc
+        except (URLError, TimeoutError, OSError, ValueError) as exc:
+            raise ProviderError(f"Gemini transcription connection failed: {exc}") from exc
+        try:
+            return " ".join(part.get("text", "") for part in result["candidates"][0]["content"]["parts"]).strip()
+        except (KeyError, IndexError, TypeError) as exc:
+            raise ProviderError(result.get("error", {}).get("message", "Gemini returned no transcript.")) from exc
     def synthesize(self, text: str) -> tuple[str, str]:
         text = text.strip()
         if not text:
