@@ -346,8 +346,7 @@ async function sendChatMessage(text, fromVoice = false) {
   chatBusy = true;
   $("send-button").disabled = true;
   addMessage("user", prompt);
-  const pending = addMessage("assistant", "Establishing response…", true);
-  setMode("thinking", "PROCESSING", "Analysing your command.");
+  setMode("thinking", "PROCESSING", "Analysing your command. ULTRON will answer by voice.");
   logEvent("Incoming command received");
   try {
     const response = await fetch("/api/chat", {
@@ -365,7 +364,6 @@ async function sendChatMessage(text, fromVoice = false) {
     let buffer = "";
     let reply = "";
     let streamDone = false;
-    pending.paragraph.textContent = "";
     while (!streamDone) {
       const {value, done} = await reader.read();
       if (done) break;
@@ -380,31 +378,21 @@ async function sendChatMessage(text, fromVoice = false) {
         if (event.error) throw new Error(event.error);
         if (typeof event.delta === "string") {
           reply += event.delta;
-          pending.paragraph.textContent = reply;
-          const feed = $("chat-feed");
-          feed.scrollTop = feed.scrollHeight;
         }
         if (event.done) streamDone = true;
       }
     }
     if (!reply.trim()) throw new Error("ULTRON ended the stream without a response.");
-    pending.article.classList.remove("pending");
-    logEvent("Response stream completed");
-    if (fromVoice && sessionActive) {
-      // Chat remains successful even if the independent speech provider fails.
-      try {
-        await speak(reply);
-      } catch (speechError) {
-        logEvent("Voice output failed: " + (speechError.message || "unknown error"));
-        toast("ULTRON replied in text, but voice output failed: " + (speechError.message || "Voice service unavailable."));
-        setMode("error", "VOICE OUTPUT ERROR", "Text response is available. Check the speech provider.");
-        resumeMicrophoneAfterSpeech();
-      }
-    } else if (sessionActive && !playbackSource) setMode("listening", "LISTENING", "I'm listening. You can interrupt me at any time.");
-    else if (!sessionActive) setMode("standby", "SYSTEM STANDBY", "Text channel active. Activate voice whenever you're ready.");
+    logEvent("Response stream completed; preparing voice output");
+    try {
+      await speak(reply);
+    } catch (speechError) {
+      logEvent("Voice output failed: " + (speechError.message || "unknown error"));
+      toast("ULTRON could not speak the response: " + (speechError.message || "Voice service unavailable."));
+      setMode("error", "VOICE OUTPUT ERROR", "Check the configured speech provider and try again.");
+      resumeMicrophoneAfterSpeech();
+    }
   } catch (error) {
-    pending.paragraph.textContent = "Request failed: " + error.message;
-    pending.article.classList.remove("pending");
     logEvent("AI request failed");
     toast(error.message);
     setMode("error", "CONNECTION ERROR", "Check your AI provider and try again.");
@@ -456,13 +444,11 @@ async function speak(text) {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "ULTRON voice generation failed.");
-    if (!sessionActive) { resumeMicrophoneAfterSpeech(); return; }
     await prepareAudio();
     const binary = atob(data.audio);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
     const audioBuffer = await audioContext.decodeAudioData(bytes.buffer);
-    if (!sessionActive) { resumeMicrophoneAfterSpeech(); return; }
     activeSpeechText = text;
     playbackSource = audioContext.createBufferSource();
     const source = playbackSource;
@@ -526,7 +512,7 @@ async function startSession() {
     recognitionFatalError = false;
     recorderFallback = false;
     createRecognition();
-    logEvent("Phoenix Evo-compatible browser-native speech recognition requested (en-NG)");
+    logEvent("Phoenix Evo-compatible browser-native speech recognition requested (en-US)");
     startListening();
   } catch (error) {
     sessionActive = false;
