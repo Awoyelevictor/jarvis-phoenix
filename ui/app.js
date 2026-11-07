@@ -25,6 +25,7 @@ let vadFrame = 0;
 let vadSpeechStarted = false;
 let vadSilenceAt = 0;
 let vadSegmentStartedAt = 0;
+let forceTimedRecorder = false;
 let latestSystemError = null;
 let latestSystemStatus = null;
 let liveIndicatorDismissed = false;
@@ -491,6 +492,7 @@ async function startSession() {
       throw new Error("This browser does not support microphone recording. Update Chrome and allow microphone access.");
     }
     sessionActive = true;
+    forceTimedRecorder = false;
     updateControls();
     setMode("connecting","REQUESTING MICROPHONE","Opening the phone microphone…");
     logEvent("Starting direct microphone capture; browser speech recognition is bypassed.");
@@ -589,7 +591,7 @@ function startFallbackRecording() {
     }
   };
 
-  const hasAnalyser = Boolean(analyser && audioContext && audioContext.state === "running");
+  const hasAnalyser = !forceTimedRecorder && Boolean(analyser && audioContext && audioContext.state === "running");
   const samples = new Float32Array(analyser?.fftSize || 2048);
 
   // If Android suspends or refuses the Web Audio analyser, still capture audio.
@@ -637,6 +639,7 @@ function startFallbackRecording() {
     return;
   }
 
+  const noSignalStartedAt = Date.now();
   const tick = () => {
     if (!sessionActive || !microphoneStream) { vadFrame = 0; return; }
     let rms = 0;
@@ -649,6 +652,14 @@ function startFallbackRecording() {
     if (voiceOutputActive || chatBusy || busy) {
       document.documentElement.style.setProperty("--voice-energy", "0");
       vadFrame = requestAnimationFrame(tick);
+      return;
+    }
+    if (!mediaRecorder && rms < 0.001 && now - noSignalStartedAt > 3000) {
+      logEvent("Microphone analyser detected no usable input; switching to timed recording fallback");
+      forceTimedRecorder = true;
+      cancelAnimationFrame(vadFrame);
+      vadFrame = 0;
+      startFallbackRecording();
       return;
     }
     if (rms > 0.006) {
