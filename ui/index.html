@@ -313,6 +313,9 @@
 .robot-head-wrapper:focus-visible{filter:drop-shadow(0 0 20px rgba(255,55,25,.95))}
 @media(max-width:768px){#ultronAssistantConsole{right:10px;bottom:10px;width:calc(100vw - 20px);height:min(76dvh,680px)}}
 
+/* Keep the central voice control above decorative desktop HUD panels. */
+.center-core-chamber{z-index:30 !important;}
+
 /* Live state chip + cyberpunk alert overlay */
 #ultron-live-indicator{position:fixed;top:16px;right:18px;z-index:120;display:flex;align-items:center;gap:9px;padding:9px 10px 9px 13px;background:rgba(8,10,13,.92);border:1px solid rgba(255,190,40,.45);color:#ffd45a;font:11px 'Share Tech Mono',monospace;letter-spacing:.13em;backdrop-filter:blur(12px);box-shadow:0 0 18px rgba(255,190,40,.10);opacity:1;transform:translateY(0);transition:border-color .2s ease,box-shadow .2s ease;pointer-events:auto}
 #ultron-live-indicator.visible{opacity:1;transform:translateY(0)}\n#ultron-live-indicator .live-close{margin-left:4px;background:transparent;border:1px solid rgba(255,255,255,.22);color:inherit;padding:1px 6px;font:14px sans-serif;line-height:1.2;cursor:pointer}\n#ultron-live-indicator .live-close:focus-visible{outline:2px solid currentColor;outline-offset:2px}
