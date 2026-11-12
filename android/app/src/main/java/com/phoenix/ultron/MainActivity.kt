@@ -26,6 +26,7 @@ class MainActivity : Activity() {
     private lateinit var root: FrameLayout
     private lateinit var diagnosticPanel: LinearLayout
     private lateinit var diagnosticText: TextView
+    private var hasLoadError = false
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -74,8 +75,9 @@ class MainActivity : Activity() {
         val retryButton = Button(this).apply {
             text = "RETRY ULTRON"
             setOnClickListener {
-                diagnosticPanel.visibility = View.GONE
-                webView.loadUrl("https://ultron-ai-5rkc.onrender.com")
+                hasLoadError = false
+                showDiagnostic("Retrying ULTRON…")
+                webView.reload()
             }
         }
         diagnosticPanel.addView(diagnosticText)
@@ -95,17 +97,18 @@ class MainActivity : Activity() {
         webView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                 super.onPageStarted(view, url, favicon)
-                showDiagnostic("Loading ULTRON…")
+                if (!hasLoadError) showDiagnostic("Loading ULTRON…")
             }
 
             override fun onPageCommitVisible(view: WebView?, url: String?) {
                 super.onPageCommitVisible(view, url)
-                diagnosticPanel.visibility = View.GONE
+                if (!hasLoadError) diagnosticPanel.visibility = View.GONE
             }
 
             override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                 super.onReceivedError(view, request, error)
                 if (request?.isForMainFrame == true) {
+                    hasLoadError = true
                     showDiagnostic("Page load failed. Code: ${error?.errorCode}\n${error?.description ?: "Unknown WebView error"}\n\nURL: ${request.url}")
                 }
             }
@@ -113,11 +116,13 @@ class MainActivity : Activity() {
             override fun onReceivedHttpError(view: WebView?, request: WebResourceRequest?, response: android.webkit.WebResourceResponse?) {
                 super.onReceivedHttpError(view, request, response)
                 if (request?.isForMainFrame == true) {
+                    hasLoadError = true
                     showDiagnostic("Server returned HTTP ${response?.statusCode ?: "error"} ${response?.reasonPhrase ?: ""}\n\nURL: ${request.url}")
                 }
             }
 
             override fun onRenderProcessGone(view: WebView?, detail: android.webkit.RenderProcessGoneDetail?): Boolean {
+                hasLoadError = true
                 showDiagnostic("Android System WebView stopped unexpectedly. Crashed: ${detail?.didCrash() == true}. Please tap RETRY ULTRON.")
                 return true
             }
@@ -140,6 +145,7 @@ class MainActivity : Activity() {
             override fun onConsoleMessage(message: android.webkit.ConsoleMessage): Boolean {
                 if (message.messageLevel() == android.webkit.ConsoleMessage.MessageLevel.ERROR) {
                     runOnUiThread {
+                        hasLoadError = true
                         showDiagnostic(
                             "ULTRON page JavaScript error:\n${message.message()}\nLine: ${message.lineNumber()}\nSource: ${message.sourceId()}"
                         )
