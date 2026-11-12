@@ -116,7 +116,7 @@ class MainActivity : Activity() {
                     }
                     val passwordInput = EditText(this@MainActivity).apply {
                         hint = "ULTRON password"
-                        singleLine = true
+                        isSingleLine = true
                         inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
                     }
                     form.addView(usernameInput)
