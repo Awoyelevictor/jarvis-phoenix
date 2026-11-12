@@ -3,13 +3,16 @@ package com.phoenix.ultron
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.media.AudioManager
 import android.os.Bundle
+import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.webkit.CookieManager
+import android.webkit.HttpAuthHandler
 import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
@@ -17,6 +20,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Button
+import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -95,6 +99,58 @@ class MainActivity : Activity() {
         setContentView(root)
 
         webView.webViewClient = object : WebViewClient() {
+            override fun onReceivedHttpAuthRequest(
+                view: WebView?,
+                handler: HttpAuthHandler?,
+                host: String?,
+                realm: String?
+            ) {
+                runOnUiThread {
+                    val form = LinearLayout(this@MainActivity).apply {
+                        orientation = LinearLayout.VERTICAL
+                        setPadding(48, 12, 48, 0)
+                    }
+                    val usernameInput = EditText(this@MainActivity).apply {
+                        hint = "ULTRON username"
+                        singleLine = true
+                    }
+                    val passwordInput = EditText(this@MainActivity).apply {
+                        hint = "ULTRON password"
+                        singleLine = true
+                        inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+                    }
+                    form.addView(usernameInput)
+                    form.addView(passwordInput)
+
+                    AlertDialog.Builder(this@MainActivity)
+                        .setTitle("ULTRON sign-in")
+                        .setMessage("Enter the access credentials configured for your ULTRON server.")
+                        .setView(form)
+                        .setPositiveButton("SIGN IN") { _, _ ->
+                            val username = usernameInput.text.toString()
+                            val password = passwordInput.text.toString()
+                            if (username.isNotBlank() && password.isNotEmpty()) {
+                                handler?.proceed(username, password)
+                            } else {
+                                handler?.cancel()
+                                hasLoadError = true
+                                showDiagnostic("Sign-in requires both a username and password. Tap RETRY ULTRON to try again.")
+                            }
+                        }
+                        .setNegativeButton("CANCEL") { _, _ ->
+                            handler?.cancel()
+                            hasLoadError = true
+                            showDiagnostic("ULTRON sign-in was cancelled. Tap RETRY ULTRON when ready.")
+                        }
+                        .setOnCancelListener {
+                            handler?.cancel()
+                            hasLoadError = true
+                            showDiagnostic("ULTRON sign-in was cancelled. Tap RETRY ULTRON when ready.")
+                        }
+                        .show()
+                }
+            }
+
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                 super.onPageStarted(view, url, favicon)
                 if (!hasLoadError) showDiagnostic("Loading ULTRON…")
@@ -102,7 +158,8 @@ class MainActivity : Activity() {
 
             override fun onPageCommitVisible(view: WebView?, url: String?) {
                 super.onPageCommitVisible(view, url)
-                if (!hasLoadError) diagnosticPanel.visibility = View.GONE
+                hasLoadError = false
+                diagnosticPanel.visibility = View.GONE
             }
 
             override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
@@ -115,7 +172,7 @@ class MainActivity : Activity() {
 
             override fun onReceivedHttpError(view: WebView?, request: WebResourceRequest?, response: android.webkit.WebResourceResponse?) {
                 super.onReceivedHttpError(view, request, response)
-                if (request?.isForMainFrame == true) {
+                if (request?.isForMainFrame == true && response?.statusCode != 401) {
                     hasLoadError = true
                     showDiagnostic("Server returned HTTP ${response?.statusCode ?: "error"} ${response?.reasonPhrase ?: ""}\n\nURL: ${request.url}")
                 }
