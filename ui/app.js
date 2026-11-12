@@ -12,6 +12,8 @@ let busy = false;
 let finalTranscript = "";
 let audioContext = null;
 let analyser = null;
+let playbackCompressor = null;
+let playbackGain = null;
 let playbackSource = null;
 let animationFrame = 0;
 let activeSpeechText = "";
@@ -37,7 +39,7 @@ function describeFailure(message) {
   if (/403|forbidden|permission/i.test(value)) return {source:"Provider access / permissions",cause:"The service refused access, or a required browser permission was denied.",action:"Check API access and Android/Chrome microphone permissions."};
   if (/network|fetch|failed to fetch|connection|timeout|offline|502|503|504/i.test(value)) return {source:"Network / cloud connection",cause:"ULTRON could not complete a request to the local server or cloud provider.",action:"Check your internet connection and confirm the ULTRON Termux server is still running."};
   if (/microphone|speech recognition|recording|audio input|notallowed|notfound/i.test(value)) return {source:"Microphone / audio input",cause:"The browser could not start or access microphone input.",action:"Allow microphone access for Chrome and ULTRON, then reload the page."};
-  if (/elevenlabs|voice|speech|tts|audio/i.test(value)) return {source:"Voice generation (TTS)",cause:"The speech provider failed to generate or decode audio.",action:"Check the ElevenLabs API key, voice ID, account credits, and network. Chat may still work without voice."};
+  if (/voice|speech|tts|audio/i.test(value)) return {source:"Voice generation (TTS)",cause:"The ULTRON Voice API failed to generate or decode audio.",action:"Check the ULTRON Voice API gateway, its reference-audio secret file, and the network. Chat may still work without voice."};
   return {source:"ULTRON application",cause:"The application reported an error. The original message is shown below.",action:"Use the details here and the Termux log to identify the failing component."};
 }
 function recordSystemError(message, component = "ULTRON") {
@@ -195,11 +197,23 @@ function animateAudio() {
   animationFrame = requestAnimationFrame(tick);
 }
 async function prepareAudio() {
-  if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)({latencyHint:"playback"});
   if (audioContext.state === "suspended") await audioContext.resume();
   if (!analyser) {
     analyser = audioContext.createAnalyser();
     analyser.fftSize = 2048;
+  }
+  if (!playbackCompressor) {
+    playbackCompressor = audioContext.createDynamicsCompressor();
+    playbackCompressor.threshold.value = -18;
+    playbackCompressor.knee.value = 12;
+    playbackCompressor.ratio.value = 4;
+    playbackCompressor.attack.value = 0.004;
+    playbackCompressor.release.value = 0.22;
+    playbackGain = audioContext.createGain();
+    playbackGain.gain.value = 1.35;
+    playbackCompressor.connect(playbackGain);
+    playbackGain.connect(audioContext.destination);
   }
 }
 function normalized(text) {
@@ -455,7 +469,7 @@ async function speak(text) {
     const source = playbackSource;
     source.buffer = audioBuffer;
     source.connect(analyser);
-    source.connect(audioContext.destination);
+    source.connect(playbackCompressor);
     source.onended = () => {
       if (playbackSource !== source) return;
       playbackSource = null;
@@ -466,7 +480,7 @@ async function speak(text) {
       else if (!sessionActive) setMode("standby", "SYSTEM STANDBY", "Text channel active.");
     };
     setMode("speaking", "ULTRON IS SPEAKING", "Speak at any time to interrupt.");
-    $("control-caption").textContent = "ELEVENLABS VOICE · MIC ACTIVE";
+    $("control-caption").textContent = "ULTRON VOICE API · MEDIA SPEAKER";
     source.start();
     animateAudio();
   } catch (error) {
@@ -499,7 +513,7 @@ async function startSession() {
     // Use one predictable path on Android: capture audio, send it to
     // Google Gemini, then send the transcript to ULTRON's chat model.
     microphoneStream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+      audio: { echoCancellation: false, noiseSuppression: true, autoGainControl: true }
     });
     if (!sessionActive) {
       microphoneStream.getTracks().forEach(track => track.stop());
