@@ -8,6 +8,8 @@ let recordedChunks = [];
 let recorderFallback = false;
 let sessionActive = false;
 let voiceOutputActive = false;
+let speechMicPaused = false;
+let microphoneResumePromise = null;
 let busy = false;
 let finalTranscript = "";
 let audioContext = null;
@@ -197,8 +199,7 @@ function animateAudio() {
   animationFrame = requestAnimationFrame(tick);
 }
 async function prepareAudio() {
-  if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)({latencyHint:"playback"});
-  if (audioContext.state === "suspended") await audioContext.resume();
+  if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)({latencyHint:"playback"});  if (audioContext.state === "suspended") await audioContext.resume();
   if (!analyser) {
     analyser = audioContext.createAnalyser();
     analyser.fftSize = 2048;
@@ -397,15 +398,14 @@ async function sendChatMessage(text, fromVoice = false) {
         if (event.done) streamDone = true;
       }
     }
-    if (!reply.trim()) throw new Error("ULTRON ended the stream without a response.");
-    logEvent("Response stream completed; preparing voice output");
+    if (!reply.trim()) throw new Error("ULTRON ended the stream without a response.");    logEvent("Response stream completed; preparing voice output");
     try {
       await speak(reply);
     } catch (speechError) {
       logEvent("Voice output failed: " + (speechError.message || "unknown error"));
       toast("ULTRON could not speak the response: " + (speechError.message || "Voice service unavailable."));
       setMode("error", "VOICE OUTPUT ERROR", "Check the configured speech provider and try again.");
-      resumeMicrophoneAfterSpeech();
+      await resumeMicrophoneAfterSpeech();
     }
   } catch (error) {
     logEvent("AI request failed");
@@ -438,19 +438,66 @@ async function processUtterance(text) {
     }
   }
 }
-function pauseMicrophoneForSpeech() {
-  // Do not pause capture or recognition. The operator can interrupt TTS.
+async function pauseMicrophoneForSpeech() {
   voiceOutputActive = true;
+  if (!sessionActive || !microphoneStream) return;
+  speechMicPaused = true;
+  if (vadFrame) cancelAnimationFrame(vadFrame);
+  vadFrame = 0;
+  vadSpeechStarted = false;
+  vadSilenceAt = 0;
+  // The command is already captured. Discard any partial segment and release
+  // the input track while ULTRON speaks so Android can leave communication mode.
+  if (mediaRecorder && mediaRecorder.state !== "inactive") {
+    try { mediaRecorder.stop(); } catch {}
+  }
+  mediaRecorder = null;
+  recordedChunks = [];
+  micAudioSource?.disconnect();
+  micAudioSource = null;
+  const stream = microphoneStream;
+  microphoneStream = null;
+  stream.getTracks().forEach(track => track.stop());
+  logEvent("Microphone released during playback to request Android media audio routing");
+  await new Promise(resolve => setTimeout(resolve, 450));
 }
-function resumeMicrophoneAfterSpeech() {
+async function resumeMicrophoneAfterSpeech() {
   voiceOutputActive = false;
-  if (!sessionActive) return;
-  if (recorderFallback && !vadFrame) startFallbackRecording();
-  // Native SpeechRecognition is intentionally left running through playback.
-  // Its onend handler restarts it only if Android Chrome ends the capture cycle.
+  if (!sessionActive || !speechMicPaused || microphoneResumePromise) return microphoneResumePromise;
+  speechMicPaused = false;
+  microphoneResumePromise = (async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: true, autoGainControl: true }
+      });
+      if (!sessionActive) {
+        stream.getTracks().forEach(track => track.stop());
+        return;
+      }
+      microphoneStream = stream;
+      if (audioContext && analyser) {
+        micAudioSource = audioContext.createMediaStreamSource(microphoneStream);
+        micAudioSource.connect(analyser);
+        animateAudio();
+      }
+      logEvent("Microphone reacquired after voice playback");
+      if (recorderFallback) startFallbackRecording();
+      setMode("listening", "LISTENING", "I'm listening again. Speak naturally.");
+    } catch (error) {
+      speechMicPaused = true;
+      const detail = "ULTRON finished speaking but could not reopen the microphone: " + (error.message || "microphone unavailable");
+      logEvent(detail);
+      recordSystemError(detail, "Microphone restart");
+      setMode("error", "MICROPHONE RESTART FAILED", detail);
+      toast(detail);
+    } finally {
+      microphoneResumePromise = null;
+    }
+  })();
+  return microphoneResumePromise;
 }
 async function speak(text) {
-  pauseMicrophoneForSpeech();
+  await pauseMicrophoneForSpeech();
   setMode("thinking", "GENERATING VOICE", "Preparing ULTRON's deep synthetic voice.");
   try {
     const response = await fetch("/api/voice", {
@@ -475,7 +522,7 @@ async function speak(text) {
       playbackSource = null;
       activeSpeechText = "";
       resetGlow();
-      resumeMicrophoneAfterSpeech();
+      resumeMicrophoneAfterSpeech().catch(error => logEvent("Microphone restart failed: " + (error.message || "unknown error")));
       if (sessionActive && !busy) setMode("listening", "LISTENING", "I'm listening. Speak naturally.");
       else if (!sessionActive) setMode("standby", "SYSTEM STANDBY", "Text channel active.");
     };
@@ -484,7 +531,7 @@ async function speak(text) {
     source.start();
     animateAudio();
   } catch (error) {
-    resumeMicrophoneAfterSpeech();
+    await resumeMicrophoneAfterSpeech();
     throw error;
   }
 }
@@ -597,8 +644,7 @@ function startFallbackRecording() {
       logEvent("Transcription failed: " + (error.message || "unknown error"));
       recordSystemError(error.message || "Speech transcription failed.", "Gemini speech transcription");
       setMode("error", "TRANSCRIPTION FAILED", error.message || "Speech transcription failed. Open diagnostics for details.");
-      toast(error.message || "Speech transcription failed.");
-    } finally {
+      toast(error.message || "Speech transcription failed.");    } finally {
       if (sessionActive && !chatBusy && !busy && !transcriptionFailed) {
         setMode("listening", "LISTENING", "I'm listening. Speak naturally.");
       }
@@ -628,9 +674,9 @@ function startFallbackRecording() {
         mediaRecorder = null;
         const blob = new Blob(recordedChunks, {type: current?.mimeType || "audio/webm"});
         recordedChunks = [];
-        if (!sessionActive) return;
+        if (!sessionActive || speechMicPaused) return;
         await transcribeRecordedBlob(blob);
-        if (sessionActive) startFallbackRecording();
+        if (sessionActive && !speechMicPaused) startFallbackRecording();
       };
       mediaRecorder.start();
       setMode("listening", "LISTENING", "Microphone is recording. Speak, then pause briefly.");
@@ -693,9 +739,9 @@ function startFallbackRecording() {
           recordedChunks = [];
           vadSpeechStarted = false;
           vadSilenceAt = 0;
-          if (!sessionActive) return;
+          if (!sessionActive || speechMicPaused) return;
           await transcribeRecordedBlob(blob);
-          if (sessionActive) startFallbackRecording();
+          if (sessionActive && !speechMicPaused) startFallbackRecording();
         };
         mediaRecorder.start();
         vadSegmentStartedAt = now;
@@ -721,6 +767,7 @@ async function toggleHeadVoice(){
 function stopSession() {
   sessionActive = false;
   voiceOutputActive = false;
+  speechMicPaused = false;
   busy = false;
   queuedUtterance = "";
   clearTimeout(interruptionTimer);
