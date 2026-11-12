@@ -1,18 +1,8 @@
 # ULTRON Android
-
-A lightweight native Android WebView shell for the existing ULTRON service.
-
-- Package: `com.phoenix.ultron`
-- App label: ULTRON
-- Loads the existing hosted ULTRON interface.
-- Requests microphone permission and forwards WebView audio capture permission.
-- Keeps Android in normal audio mode and exposes the media/music volume stream.
-- Includes an original vector launcher icon with a red-lit metallic machine face.
-
-## Build
-
-Run the **Build ULTRON Android APK** workflow in GitHub Actions. Download the
-`ULTRON-debug-APK` artifact and install `app-debug.apk` on Android.
-
-This first build is an installable debug APK. A signed release APK/AAB can be
-configured later for distribution.
+Native Android WebView shell for the existing hosted ULTRON service.
+- Package: com.phoenix.ultron
+- Uses the hosted ULTRON UI and existing brain/voice services.
+- Requests microphone access and grants WebView audio capture permission.
+- Uses Android normal audio mode and the media/music volume stream.
+- Includes an original vector metallic red robot launcher icon.
+Build with the GitHub Actions workflow **Build ULTRON Android APK**. Download artifact **ULTRON-debug-APK** and install app-debug.apk. This first artifact is a debug build, not a signed Play Store release.
