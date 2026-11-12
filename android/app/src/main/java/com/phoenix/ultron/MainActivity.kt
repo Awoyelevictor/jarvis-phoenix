@@ -112,7 +112,7 @@ class MainActivity : Activity() {
                     }
                     val usernameInput = EditText(this@MainActivity).apply {
                         hint = "ULTRON username"
-                        singleLine = true
+                        isSingleLine = true
                     }
                     val passwordInput = EditText(this@MainActivity).apply {
                         hint = "ULTRON password"
