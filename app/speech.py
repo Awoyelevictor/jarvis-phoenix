@@ -88,6 +88,50 @@ class GeminiSpeechProvider:
         text = text.strip()
         if not text:
             raise ProviderError("There is no response to speak.")
+        # Prefer the separately hosted ULTRON voice gateway when configured.
+        # The gateway stores the private reference recording and returns WAV audio.
+        if self.settings.voice_api_url or self.settings.voice_api_key:
+            if not self.settings.voice_api_url or not self.settings.voice_api_key:
+                raise ProviderError(
+                    "ULTRON_VOICE_API_URL and ULTRON_VOICE_API_KEY must both be configured."
+                )
+            gateway_url = self.settings.voice_api_url.rstrip("/") + "/speak"
+            gateway_payload = {
+                "text": text[:2000],
+                "lang": "eng",
+            }
+            gateway_request = Request(
+                gateway_url,
+                data=json.dumps(gateway_payload).encode("utf-8"),
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "audio/wav",
+                    "X-API-Key": self.settings.voice_api_key,
+                },
+                method="POST",
+            )
+            try:
+                with urlopen(gateway_request, timeout=max(self.settings.request_timeout, 300)) as response:
+                    audio_bytes = response.read()
+                    mime_type = response.headers.get_content_type() or "audio/wav"
+            except HTTPError as exc:
+                detail = exc.read().decode("utf-8", errors="replace")
+                try:
+                    parsed = json.loads(detail)
+                    detail = parsed.get("detail") or detail
+                except (ValueError, TypeError):
+                    pass
+                detail = " ".join(str(detail).split())[:900]
+                raise ProviderError(
+                    f"ULTRON Voice API failed (HTTP {exc.code}): {detail}"
+                ) from exc
+            except (URLError, TimeoutError, OSError) as exc:
+                raise ProviderError(f"ULTRON Voice API connection failed: {exc}") from exc
+
+            if not audio_bytes or not audio_bytes.startswith(b"RIFF"):
+                raise ProviderError("ULTRON Voice API returned invalid WAV audio.")
+            return base64.b64encode(audio_bytes).decode("ascii"), "audio/wav"
+
         if not self.settings.elevenlabs_api_key:
             raise ProviderError("ELEVENLABS_API_KEY is not configured on the ULTRON server.")
         if not self.settings.elevenlabs_voice_id:
