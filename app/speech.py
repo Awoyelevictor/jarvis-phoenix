@@ -1,4 +1,4 @@
-"""Cloud speech services for ULTRON: Gemini audio transcription + ElevenLabs TTS."""
+"""Cloud speech services for ULTRON: Gemini transcription + ULTRON Voice API TTS."""
 from __future__ import annotations
 
 import base64
@@ -11,7 +11,7 @@ from app.providers import ProviderError
 
 
 class GeminiSpeechProvider:
-    """Transcribe microphone audio with Gemini and synthesize with ElevenLabs."""
+    """Use Gemini only for microphone transcription and ULTRON Voice API for speech."""
 
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -84,100 +84,49 @@ class GeminiSpeechProvider:
         return transcript
 
     def synthesize(self, text: str) -> tuple[str, str]:
-        """Generate speech using ElevenLabs; never silently fall back to another TTS."""
+        """Generate speech exclusively through the custom ULTRON Voice API."""
         text = text.strip()
         if not text:
             raise ProviderError("There is no response to speak.")
-        # Prefer the separately hosted ULTRON voice gateway when configured.
-        # The gateway stores the private reference recording and returns WAV audio.
-        if self.settings.voice_api_url or self.settings.voice_api_key:
-            if not self.settings.voice_api_url or not self.settings.voice_api_key:
-                raise ProviderError(
-                    "ULTRON_VOICE_API_URL and ULTRON_VOICE_API_KEY must both be configured."
-                )
-            gateway_url = self.settings.voice_api_url.rstrip("/") + "/speak"
-            gateway_payload = {
-                "text": text[:2000],
-                "lang": "eng",
-            }
-            gateway_request = Request(
-                gateway_url,
-                data=json.dumps(gateway_payload).encode("utf-8"),
-                headers={
-                    "Content-Type": "application/json",
-                    "Accept": "audio/wav",
-                    "X-API-Key": self.settings.voice_api_key,
-                },
-                method="POST",
+
+        if not self.settings.voice_api_url or not self.settings.voice_api_key:
+            raise ProviderError(
+                "ULTRON Voice API is not configured. Set ULTRON_VOICE_API_URL "
+                "and ULTRON_VOICE_API_KEY. No alternative TTS provider is enabled."
             )
-            try:
-                with urlopen(gateway_request, timeout=max(self.settings.request_timeout, 300)) as response:
-                    audio_bytes = response.read()
-                    mime_type = response.headers.get_content_type() or "audio/wav"
-            except HTTPError as exc:
-                detail = exc.read().decode("utf-8", errors="replace")
-                try:
-                    parsed = json.loads(detail)
-                    detail = parsed.get("detail") or detail
-                except (ValueError, TypeError):
-                    pass
-                detail = " ".join(str(detail).split())[:900]
-                raise ProviderError(
-                    f"ULTRON Voice API failed (HTTP {exc.code}): {detail}"
-                ) from exc
-            except (URLError, TimeoutError, OSError) as exc:
-                raise ProviderError(f"ULTRON Voice API connection failed: {exc}") from exc
 
-            if not audio_bytes or not audio_bytes.startswith(b"RIFF"):
-                raise ProviderError("ULTRON Voice API returned invalid WAV audio.")
-            return base64.b64encode(audio_bytes).decode("ascii"), "audio/wav"
-
-        if not self.settings.elevenlabs_api_key:
-            raise ProviderError("ELEVENLABS_API_KEY is not configured on the ULTRON server.")
-        if not self.settings.elevenlabs_voice_id:
-            raise ProviderError("ELEVENLABS_VOICE_ID is not configured.")
-
-        url = (
-            "https://api.elevenlabs.io/v1/text-to-speech/"
-            f"{self.settings.elevenlabs_voice_id}?output_format=mp3_44100_128"
-        )
-        payload = {
-            "text": text[:6000],
-            "model_id": self.settings.elevenlabs_model_id or "eleven_turbo_v2_5",
-            "voice_settings": {
-                "stability": 0.58,
-                "similarity_boost": 0.82,
-                "style": 0.35,
-                "use_speaker_boost": True,
-            },
+        gateway_url = self.settings.voice_api_url.rstrip("/") + "/speak"
+        gateway_payload = {
+            "text": text[:2000],
+            "lang": "eng",
         }
-        request = Request(
-            url,
-            data=json.dumps(payload).encode("utf-8"),
+        gateway_request = Request(
+            gateway_url,
+            data=json.dumps(gateway_payload).encode("utf-8"),
             headers={
                 "Content-Type": "application/json",
-                "Accept": "audio/mpeg",
-                "xi-api-key": self.settings.elevenlabs_api_key,
+                "Accept": "audio/wav",
+                "X-API-Key": self.settings.voice_api_key,
             },
             method="POST",
         )
         try:
-            with urlopen(request, timeout=self.settings.request_timeout) as response:
+            with urlopen(gateway_request, timeout=max(self.settings.request_timeout, 300)) as response:
                 audio_bytes = response.read()
-                mime_type = response.headers.get_content_type() or "audio/mpeg"
         except HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
             try:
                 parsed = json.loads(detail)
-                detail = parsed.get("detail", {}).get("message") or parsed.get("detail") or detail
+                detail = parsed.get("detail") or detail
             except (ValueError, TypeError):
                 pass
             detail = " ".join(str(detail).split())[:900]
-            raise ProviderError(f"ElevenLabs TTS failed (HTTP {exc.code}): {detail}") from exc
+            raise ProviderError(
+                f"ULTRON Voice API failed (HTTP {exc.code}): {detail}"
+            ) from exc
         except (URLError, TimeoutError, OSError) as exc:
-            raise ProviderError(f"ElevenLabs TTS connection failed: {exc}") from exc
-        if not audio_bytes:
-            raise ProviderError("ElevenLabs returned an empty audio response.")
-        if not mime_type.startswith("audio/"):
-            raise ProviderError(f"ElevenLabs returned an unexpected content type: {mime_type}.")
-        return base64.b64encode(audio_bytes).decode("ascii"), mime_type
+            raise ProviderError(f"ULTRON Voice API connection failed: {exc}") from exc
+
+        if not audio_bytes or not audio_bytes.startswith(b"RIFF"):
+            raise ProviderError("ULTRON Voice API returned invalid WAV audio.")
+        return base64.b64encode(audio_bytes).decode("ascii"), "audio/wav"
