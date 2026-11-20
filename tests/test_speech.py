@@ -102,6 +102,8 @@ def test_sonivox_developer_api_returns_audio_from_signed_url(monkeypatch):
 
     def fake_urlopen(request, timeout):
         calls.append((request.full_url, request.get_method(), timeout))
+        if request.full_url == "https://sonivox.example.test/health":
+            return FakeResponse({"status": "ok"})
         if request.get_method() == "POST":
             assert request.get_header("Authorization") == "Bearer voice-test"
             assert request.get_header("Accept") == "application/json"
@@ -118,9 +120,10 @@ def test_sonivox_developer_api_returns_audio_from_signed_url(monkeypatch):
     audio, mime_type = provider.synthesize("Systems online.")
     assert base64.b64decode(audio) == b"RIFFfake-wav-data"
     assert mime_type == "audio/wav"
-    assert calls[0][0] == "https://sonivox.example.test/v1/speech"
-    assert calls[1][0] == "https://storage.example.test/signed.wav"
-    assert all(call[2] >= 300 for call in calls)
+    assert calls[0][0] == "https://sonivox.example.test/health"
+    assert calls[1][0] == "https://sonivox.example.test/v1/speech"
+    assert calls[2][0] == "https://storage.example.test/signed.wav"
+    assert calls[1][2] >= 300 and calls[2][2] >= 300
 
 
 def test_settings_load_sonivox_environment(monkeypatch):
