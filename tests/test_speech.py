@@ -92,5 +92,5 @@ def test_ultron_voice_api_returns_wav(monkeypatch):
 
 
 def test_ultron_voice_api_requires_configuration():
-    with pytest.raises(ProviderError, match="ULTRON_VOICE_API_KEY"):
+    with pytest.raises(ProviderError, match="SONIVOX_API_KEY"):
         GeminiSpeechProvider(Settings()).synthesize("Hello")
