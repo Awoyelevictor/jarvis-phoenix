@@ -160,9 +160,10 @@ def make_handler(assistant: Assistant):
 
         def do_POST(self) -> None:
             route = urlparse(self.path).path
-            # Pairing is the only unauthenticated POST route; it requires a
-            # short-lived, one-time code created by the authenticated owner.
-            if route != "/api/devices/pair" and not self._authorize():
+            # Pairing uses a short-lived one-time code. Device agent routes
+            # use their own bearer credential rather than the owner browser login.
+            device_routes = {"/api/devices/pair", "/api/devices/heartbeat", "/api/devices/commands/complete"}
+            if route not in device_routes and not self._authorize():
                 return
             try:
                 body = self._read_json()
