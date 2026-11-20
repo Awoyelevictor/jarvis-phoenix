@@ -25,46 +25,47 @@ class FakeResponse:
         return self.payload if isinstance(self.payload, bytes) else json.dumps(self.payload).encode()
 
 
-def test_gemini_transcribes_browser_audio(monkeypatch):
+def test_openrouter_transcribes_browser_audio_with_same_chat_key(monkeypatch):
     captured = {}
 
     def fake_urlopen(request, timeout):
         captured["url"] = request.full_url
         captured["payload"] = json.loads(request.data.decode())
-        captured["api_key"] = request.get_header("X-goog-api-key")
-        return FakeResponse({"candidates": [{"content": {"parts": [{"text": "  Hello ULTRON  "}]}}]})
+        captured["authorization"] = request.get_header("Authorization")
+        captured["timeout"] = timeout
+        return FakeResponse({"text": "  Hello ULTRON  "})
 
     monkeypatch.setattr("app.speech.urlopen", fake_urlopen)
     provider = GeminiSpeechProvider(Settings(
-        gemini_api_key="gemini-test",
-        transcription_model="gemini-3.5-flash-lite",
+        cloud_base_url="https://openrouter.ai/api/v1",
+        cloud_api_key="openrouter-test",
+        transcription_model="openai/whisper-1",
     ))
-    transcript = provider.transcribe(base64.b64encode(b"fake-audio").decode(), "audio/webm")
+    transcript = provider.transcribe(base64.b64encode(b"fake-audio").decode(), "audio/webm;codecs=opus")
 
     assert transcript == "Hello ULTRON"
-    assert captured["url"] == "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent"
-    assert captured["api_key"] == "gemini-test"
-    parts = captured["payload"]["contents"][0]["parts"]
-    assert parts[1]["inline_data"]["mime_type"] == "audio/webm"
-    assert parts[1]["inline_data"]["data"] == base64.b64encode(b"fake-audio").decode()
+    assert captured["url"] == "https://openrouter.ai/api/v1/audio/transcriptions"
+    assert captured["authorization"] == "Bearer openrouter-test"
+    assert captured["payload"]["model"] == "openai/whisper-1"
+    assert captured["payload"]["input_audio"]["format"] == "webm"
+    assert captured["payload"]["input_audio"]["data"] == base64.b64encode(b"fake-audio").decode()
+    assert captured["timeout"] <= 60
 
 
-def test_gemini_transcription_requires_api_key():
-    provider = GeminiSpeechProvider(Settings(gemini_api_key=""))
-    with pytest.raises(ProviderError, match="GEMINI_API_KEY"):
+def test_openrouter_transcription_requires_the_openrouter_key():
+    provider = GeminiSpeechProvider(Settings(cloud_api_key=""))
+    with pytest.raises(ProviderError, match="OPENROUTER_API_KEY"):
         provider.transcribe(base64.b64encode(b"audio").decode(), "audio/webm")
 
 
-def test_gemini_empty_transcript_is_reported():
-    provider = GeminiSpeechProvider(Settings(gemini_api_key="gemini-test"))
-    import app.speech as speech_module
-    original = speech_module.urlopen
-    speech_module.urlopen = lambda request, timeout: FakeResponse({"candidates": [{"content": {"parts": [{"text": " "}]}}]})
-    try:
-        with pytest.raises(ProviderError, match="empty transcript"):
-            provider.transcribe(base64.b64encode(b"audio").decode(), "audio/webm")
-    finally:
-        speech_module.urlopen = original
+def test_openrouter_empty_transcript_is_reported(monkeypatch):
+    monkeypatch.setattr(
+        "app.speech.urlopen",
+        lambda request, timeout: FakeResponse({"text": " "}),
+    )
+    provider = GeminiSpeechProvider(Settings(cloud_api_key="router-test"))
+    with pytest.raises(ProviderError, match="empty or invalid transcript"):
+        provider.transcribe(base64.b64encode(b"audio").decode(), "audio/webm")
 
 
 def test_ultron_voice_api_returns_wav(monkeypatch):
