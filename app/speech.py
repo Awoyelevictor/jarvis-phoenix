@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import json
+import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
@@ -112,6 +113,32 @@ class GeminiSpeechProvider:
             method="POST",
         )
         timeout = max(self.settings.request_timeout, 300)
+        # Render free instances sleep when idle. Wake SONIVOX before submitting
+        # a usage-counted generation request, retrying transient proxy errors.
+        health_url = self.settings.voice_api_url.rstrip("/") + "/health"
+        health_request = Request(health_url, headers={"Accept": "application/json"}, method="GET")
+        last_wake_error = None
+        for attempt in range(8):
+            try:
+                with urlopen(health_request, timeout=20) as health_response:
+                    if health_response.status == 200:
+                        last_wake_error = None
+                        break
+                    last_wake_error = f"HTTP {health_response.status}"
+            except HTTPError as exc:
+                last_wake_error = f"HTTP {exc.code}"
+                if exc.code not in (500, 502, 503, 504):
+                    raise ProviderError(f"SONIVOX health check failed (HTTP {exc.code}).") from exc
+            except (URLError, TimeoutError, OSError) as exc:
+                last_wake_error = str(exc)
+            if attempt < 7:
+                time.sleep(5)
+        if last_wake_error is not None:
+            raise ProviderError(
+                "SONIVOX is not waking up on Render after 8 health checks. "
+                f"Last error: {last_wake_error}"
+            )
+
         try:
             with urlopen(gateway_request, timeout=timeout) as response:
                 result = json.loads(response.read().decode("utf-8"))
