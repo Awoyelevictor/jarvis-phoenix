@@ -95,3 +95,38 @@ def test_elevenlabs_speech_returns_mp3(monkeypatch):
 def test_elevenlabs_speech_requires_api_key():
     with pytest.raises(ProviderError, match="ELEVENLABS_API_KEY"):
         GeminiSpeechProvider(Settings()).synthesize("Hello")
+
+
+def test_sonivox_developer_api_returns_audio_from_signed_url(monkeypatch):
+    calls = []
+
+    def fake_urlopen(request, timeout):
+        calls.append((request.full_url, request.get_method(), timeout))
+        if request.get_method() == "POST":
+            assert request.get_header("Authorization") == "Bearer voice-test"
+            assert request.get_header("Accept") == "application/json"
+            assert json.loads(request.data.decode()) == {"text": "Systems online.", "lang": "eng"}
+            return FakeResponse({"audio_url": "https://storage.example.test/signed.wav"})
+        return FakeResponse(b"RIFFfake-wav-data", "audio/wav")
+
+    monkeypatch.setattr("app.speech.urlopen", fake_urlopen)
+    provider = GeminiSpeechProvider(Settings(
+        voice_api_url="https://sonivox.example.test",
+        voice_api_key="voice-test",
+        voice_api_path="/v1/speech",
+    ))
+    audio, mime_type = provider.synthesize("Systems online.")
+    assert base64.b64decode(audio) == b"RIFFfake-wav-data"
+    assert mime_type == "audio/wav"
+    assert calls[0][0] == "https://sonivox.example.test/v1/speech"
+    assert calls[1][0] == "https://storage.example.test/signed.wav"
+    assert all(call[2] >= 300 for call in calls)
+
+
+def test_settings_load_sonivox_environment(monkeypatch):
+    monkeypatch.setenv("SONIVOX_API_URL", "https://sonivox.example.test")
+    monkeypatch.setenv("SONIVOX_API_KEY", "voice-test")
+    settings = Settings.from_env()
+    assert settings.voice_api_url == "https://sonivox.example.test"
+    assert settings.voice_api_key == "voice-test"
+    assert settings.voice_api_path == "/v1/speech"
