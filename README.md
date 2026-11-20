@@ -38,7 +38,7 @@ The core application uses Python's standard library. You do not need to install 
 Clone the development branch, which contains the current ULTRON implementation:
 
 ```bash
-git clone --branch phoenix-upgrade https://github.com/Awoyelevictor/jarvis-phoenix.git
+git clone --branch ultron-multidevice-foundation https://github.com/Awoyelevictor/jarvis-phoenix.git
 cd jarvis-phoenix
 ```
 
@@ -53,22 +53,11 @@ Linux, macOS, and Termux:
 export OPENROUTER_API_KEY="YOUR_OPENROUTER_API_KEY"
 export PHOENIX_CLOUD_BASE_URL="https://openrouter.ai/api/v1"
 export PHOENIX_CLOUD_MODEL="openrouter/free"
-# Google Gemini audio transcription model (default: openai/whisper-1)
-export ULTRON_GEMINI_STT_MODEL="openai/whisper-1"
 # SONIVOX speech output
 export SONIVOX_API_URL="https://YOUR-SONIVOX-API-HOST"
 export SONIVOX_API_KEY="YOUR_SONIVOX_API_KEY"
 # Optional Gemini microphone transcription
 export GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
-```
-
-**Optional: Gemini chat** (not the default; SONIVOX remains the speech-output provider):
-
-Linux, macOS, and Termux:
-```bash
-export GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
-export PHOENIX_CLOUD_BASE_URL="https://generativelanguage.googleapis.com/v1beta/openai"
-export PHOENIX_CLOUD_MODEL="gemini-3.8-flash"
 ```
 
 Gemini is only used for microphone transcription when configured. SONIVOX generates spoken responses. These services are separate from OpenRouter chat.
@@ -97,7 +86,7 @@ Keep the terminal session running while you use ULTRON. Press `Ctrl+C` in the te
    ```
 3. Clone the project:
    ```bash
-   git clone --branch phoenix-upgrade https://github.com/Awoyelevictor/jarvis-phoenix.git
+   git clone --branch ultron-multidevice-foundation https://github.com/Awoyelevictor/jarvis-phoenix.git
    cd jarvis-phoenix
    ```
 4. Set your provider keys using one of the configuration examples above. Do not share your keys or commit them to Git.
