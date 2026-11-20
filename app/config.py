@@ -47,7 +47,7 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
-        cloud_base_url = os.getenv("PHOENIX_CLOUD_BASE_URL", GEMINI_OPENAI_BASE_URL).rstrip("/")
+        cloud_base_url = os.getenv("PHOENIX_CLOUD_BASE_URL", OPENROUTER_BASE_URL).rstrip("/")
         if "openrouter.ai" in cloud_base_url:
             cloud_api_key = os.getenv("OPENROUTER_API_KEY", "") or os.getenv("PHOENIX_CLOUD_API_KEY", "")
         else:
@@ -70,8 +70,8 @@ class Settings:
             tts_model=os.getenv("PHOENIX_TTS_MODEL", DEFAULT_OPENROUTER_TTS_MODEL if "openrouter.ai" in cloud_base_url else DEFAULT_TTS_MODEL),
             tts_voice=os.getenv("PHOENIX_TTS_VOICE", DEFAULT_OPENROUTER_TTS_VOICE if "openrouter.ai" in cloud_base_url else "Algenib"),
             tts_style=os.getenv("PHOENIX_TTS_STYLE", DEFAULT_TTS_STYLE),
-            voice_api_url=(os.getenv("ULTRON_VOICE_API_URL", "") or os.getenv("TTS_API_URL", "")).rstrip("/"),
-            voice_api_key=os.getenv("ULTRON_VOICE_API_KEY", ""),
+            voice_api_url=(os.getenv("SONIVOX_API_URL", "") or os.getenv("ULTRON_VOICE_API_URL", "") or os.getenv("TTS_API_URL", "")).rstrip("/"),
+            voice_api_key=(os.getenv("SONIVOX_API_KEY", "") or os.getenv("ULTRON_VOICE_API_KEY", "")).strip(),
             voice_api_path=os.getenv("ULTRON_VOICE_API_PATH", "/synthesize" if os.getenv("TTS_API_URL") else "/v1/audio/speech").strip() or "/synthesize",
             use_qwen_tts=os.getenv("USE_QWEN_TTS", "false").strip().lower() in {"1", "true", "yes", "on"},
             request_timeout=float(os.getenv("PHOENIX_REQUEST_TIMEOUT", "90")),
