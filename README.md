@@ -253,3 +253,33 @@ The Qwen adapter is server-side. The browser continues to call the existing `/ap
 For a Colab-hosted API, set `ULTRON_VOICE_API_URL` to the current Ngrok HTTPS host, `ULTRON_VOICE_API_PATH=/synthesize`, `ULTRON_VOICE_API_KEY` to the same private bearer key configured by the Colab server, and `USE_QWEN_TTS=true`. For the standalone ULTRON Voice Engine API, use `ULTRON_VOICE_API_PATH=/v1/audio/speech`.
 
 Colab runtimes and Ngrok URLs are temporary: when the runtime stops or the tunnel URL changes, update the backend environment. Never commit real API keys or Ngrok tokens. Qwen speech synthesis currently returns a complete WAV response; this does not change the separate SSE streaming behaviour of ULTRON chat.
+
+
+## Multi-device foundation (development branch)
+
+The `ultron-multidevice-foundation` branch adds the first shared-device API layer.
+The registry stores device records, one-time pairing-code hashes, and device-token
+hashes in SQLite. Set `ULTRON_DEVICE_DB` to a persistent disk path when hosting
+the service; without persistent storage, pairings and queued commands will not
+survive an ephemeral container restart.
+
+The owner-facing routes use the existing ULTRON server authentication:
+
+- `POST /api/devices/pairing` — create a short-lived pairing code (default 5 minutes).
+- `GET /api/devices` — list paired devices and their recent online state.
+- `POST /api/devices/commands` — queue an allowed command for a paired device.
+- `DELETE /api/devices/{device_id}` — revoke a paired device.
+
+Device-agent routes use the device's bearer token:
+
+- `POST /api/devices/pair` — exchange a one-time pairing code for a device token.
+- `POST /api/devices/heartbeat` — update the device's last-seen time.
+- `GET /api/device/commands` — claim the next queued command.
+- `POST /api/devices/commands/complete` — submit a claimed command result.
+
+The first command allowlist is deliberately narrow: `open_app`, `open_url`,
+`run_tests`, `inspect_project`, `notify`, and `ping`. This API queues
+instructions; it does not itself execute operating-system actions. Native Android
+and Windows agents must validate each command locally and request confirmation
+for sensitive operations before execution. Device tokens are returned only once
+during pairing; store them in platform-protected storage and never log them.
