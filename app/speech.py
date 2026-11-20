@@ -91,8 +91,8 @@ class GeminiSpeechProvider:
 
         if not self.settings.voice_api_url or not self.settings.voice_api_key:
             raise ProviderError(
-                "ULTRON Voice API is not configured. Set ULTRON_VOICE_API_URL "
-                "and ULTRON_VOICE_API_KEY. No alternative TTS provider is enabled."
+                "SONIVOX is not configured. Set SONIVOX_API_URL and SONIVOX_API_KEY "
+                "(legacy ULTRON_VOICE_API_* names are also accepted)."
             )
 
         gateway_url = self.settings.voice_api_url.rstrip("/") + "/speak"
