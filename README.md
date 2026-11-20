@@ -27,8 +27,9 @@ You need:
 - Python **3.10 or newer**
 - Git
 - An internet connection
-- An OpenRouter API key for chat and Whisper transcription
-- An ElevenLabs API key for spoken responses
+- One OpenRouter API key for chat/reasoning
+- One SONIVOX API URL and API key for spoken responses
+- A Gemini API key only if server-side microphone transcription is enabled
 
 The core application uses Python's standard library. You do not need to install the legacy MLX/Whisper/MeloTTS packages in `requirements.txt) to run the current ULTRON browser interface.
 
@@ -54,10 +55,11 @@ export PHOENIX_CLOUD_BASE_URL="https://openrouter.ai/api/v1"
 export PHOENIX_CLOUD_MODEL="openrouter/free"
 # Google Gemini audio transcription model (default: openai/whisper-1)
 export ULTRON_GEMINI_STT_MODEL="openai/whisper-1"
-# ElevenLabs speech output
-export ELEVENLABS_API_KEY="YOUR_ELEVENLABS_API_KEY"
-export ELEVENLABS_VOICE_ID="pNInz6obpgDQGcFmaJgB"
-export ELEVENLABS_MODEL_ID="eleven_turbo_v2_5"
+# SONIVOX speech output
+export SONIVOX_API_URL="https://YOUR-SONIVOX-API-HOST"
+export SONIVOX_API_KEY="YOUR_SONIVOX_API_KEY"
+# Optional Gemini microphone transcription
+export GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
 ```
 
 **Optional: Gemini chat** (not the default; SONIVOX remains the speech-output provider):
