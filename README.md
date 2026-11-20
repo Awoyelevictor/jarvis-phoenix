@@ -2,23 +2,24 @@
 
 **A cross-platform, voice-first personal AI assistant for Android phones and Windows/Linux/macOS computers.**
 
-ULTRON is the user-facing assistant built in this repository. It combines a browser-based voice interface, cloud AI chat, server-side speech recognition, ElevenLabs-generated speech, and private local memory. The project is open source so other developers can run it, inspect it, and contribute.
+ULTRON is the user-facing assistant built in this repository. It combines a browser-based voice interface, cloud AI chat, server-side speech recognition, SONIVOX-generated speech, and private local memory. The project is open source so other developers can run it, inspect it, and contribute.
 
 > **Project status:** Active development. This is a Python server with a browser/PWA interface, not a native Android APK or Windows desktop installer yet. Some browser voice features vary by device and browser.
 
 ## Features
 
 - Voice-first browser interface with a reactive ULTRON core.
-- Cloud chat through one configured OpenAI-compatible endpoint at a time (for example OpenRouter or Gemini).
+- Cloud chat through one OpenRouter API key and the OpenAI-compatible Chat Completions API.
+- Spoken responses through one SONIVOX API key; no voice-key rotation or secondary TTS provider.
 - Google Gemini audio transcription handles microphone speech-to-text through the server-side audio transcription API.
-- ElevenLabs handles all spoken responses; Gemini, Qwen/Colab, and OpenRouter TTS are not used in this voice path.
+- SONIVOX handles all spoken responses through the configured `/speak` endpoint.
 - Android and desktop use the same MediaRecorder capture path, avoiding dependence on browser-native speech recognition.
-- Voice configuration uses the existing `OPENROUTER_API_KEY` plus `ELEVENLABS_API_KEY`. Optional model/voice overrides: `ULTRON_GEMINI_STT_MODEL`, `ELEVENLABS_MODEL_ID`, and `ELEVENLABS_VOICE_ID`.
+- Chat configuration uses `OPENROUTER_API_KEY`. Voice output uses `SONIVOX_API_URL` and `SONIVOX_API_KEY`. Legacy `ULTRON_VOICE_API_URL` and `ULTRON_VOICE_API_KEY` remain supported for compatibility.
 - Local SQLite memory; optional, explicitly approved Supabase memory sync.
 - Session-based voice recognition and interruption where supported by the browser.
 - Runs locally on Android through Termux or on a computer with Python.
 
-**Provider routing note:** Chat uses the configured cloud provider (OpenRouter is recommended) with optional Ollama as a local fallback. Voice input uses Google Gemini audio transcription and voice output uses ElevenLabs. Both are usage-metered services and may incur charges; they are not unlimited. If either provider is unavailable or out of credits, ULTRON will show the provider error rather than silently switching to Gemini.
+**Provider routing note:** OpenRouter is the default cloud chat provider. ULTRON uses exactly one configured OpenRouter key and does not rotate across keys or accounts. SONIVOX is the sole speech-output provider and uses exactly one SONIVOX key. Microphone transcription currently remains a separate Gemini service and therefore needs `GEMINI_API_KEY`; it is not used for chat or speech output. Ollama remains an optional local chat fallback.
 
 ## Quick start
 
@@ -44,7 +45,7 @@ cd jarvis-phoenix
 
 Choose **one** chat provider.
 
-**OpenRouter chat + Whisper transcription:**
+**OpenRouter chat:**
 
 Linux, macOS, and Termux:
 ```bash
@@ -59,7 +60,7 @@ export ELEVENLABS_VOICE_ID="pNInz6obpgDQGcFmaJgB"
 export ELEVENLABS_MODEL_ID="eleven_turbo_v2_5"
 ```
 
-**Optional: Gemini chat only** (voice still requires Google Gemini audio transcription + ElevenLabs):
+**Optional: Gemini chat** (not the default; SONIVOX remains the speech-output provider):
 
 Linux, macOS, and Termux:
 ```bash
@@ -68,7 +69,7 @@ export PHOENIX_CLOUD_BASE_URL="https://generativelanguage.googleapis.com/v1beta/
 export PHOENIX_CLOUD_MODEL="gemini-3.8-flash"
 ```
 
-Google Gemini audio transcription transcription and ElevenLabs speech generation are separate paid/usage-metered services. Gemini can still be selected for text chat, but it is not used for microphone transcription or voice output.
+Gemini is only used for microphone transcription when configured. SONIVOX generates spoken responses. These services are separate from OpenRouter chat.
 
 ### 3. Start ULTRON
 
@@ -125,7 +126,7 @@ To avoid re-entering keys every time you open Termux, you may add your export co
    ```
 3. Set your keys for the current PowerShell session (choose one chat provider):
    
-   OpenRouter + Grok Voice TTS:
+   OpenRouter chat + SONIVOX voice:
    ```powershell
    $env:OPENROUTER_API_KEY = "YOUR_OPENROUTER_API_KEY"
    $env:PHOENIX_CLOUD_BASE_URL = "https://openrouter.ai/api/v1"
@@ -170,7 +171,7 @@ On Android/Termux, Ollama is not assumed to be installed or available. You can u
 
 | Variable | Purpose |
 |---|---|
-| `OPENROUTER_API_KEY` | OpenRouter key when OpenRouter is the selected chat endpoint |
+| `OPENROUTER_API_KEY` | The single OpenRouter key used for chat/reasoning |\n| `SONIVOX_API_URL` | SONIVOX API base URL; current adapter calls `/speak` |\n| `SONIVOX_API_KEY` | The single SONIVOX speech-output key |
 | `GEMINI_API_KEY` | Gemini chat key and/or Gemini TTS key |
 | `PHOENIX_CLOUD_BASE_URL` | Selected OpenAI-compatible chat endpoint |
 | `PHOENIX_CLOUD_MODEL` | Chat model name |
@@ -226,7 +227,7 @@ python -m pytest -v
 - `phoenix.py` — application entry point
 - `app/config.py` — environment configuration
 - `app/providers.py` — cloud and Ollama chat adapters
-- `app/speech.py` — Gemini TTS integration
+- `app/speech.py` — Gemini transcription and SONIVOX speech output
 - `app/memory.py` — SQLite memory and optional Supabase sync
 - `app/assistant.py` — ULTRON persona, memory context, and provider routing
 - `app/webui.py` — local HTTP server and API
