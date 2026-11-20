@@ -1,13 +1,14 @@
 from app.config import (
-    DEFAULT_GEMINI_MODEL,
-    GEMINI_OPENAI_BASE_URL,
+    DEFAULT_OPENROUTER_MODEL,
+    OPENROUTER_BASE_URL,
     Settings,
 )
 
 
-def test_gemini_is_the_default_cloud_target(monkeypatch):
+def test_openrouter_is_the_default_cloud_target(monkeypatch):
     for name in (
         "GEMINI_API_KEY",
+        "OPENROUTER_API_KEY",
         "PHOENIX_CLOUD_API_KEY",
         "PHOENIX_CLOUD_BASE_URL",
         "PHOENIX_CLOUD_MODEL",
@@ -17,15 +18,13 @@ def test_gemini_is_the_default_cloud_target(monkeypatch):
 
     settings = Settings.from_env()
 
-    assert settings.cloud_base_url == GEMINI_OPENAI_BASE_URL
-    assert settings.cloud_model == DEFAULT_GEMINI_MODEL
+    assert settings.cloud_base_url == OPENROUTER_BASE_URL
+    assert settings.cloud_model == DEFAULT_OPENROUTER_MODEL
     assert settings.cloud_api_key == ""
     assert settings.local_model == "llama3.2:1b"
 
 
-def test_gemini_api_key_is_loaded_without_exposing_it(monkeypatch):
-    # Isolate this Gemini-specific test from a developer's active provider.
-    # Termux/.env may configure OpenRouter globally.
+def test_gemini_key_is_loaded_only_for_optional_transcription(monkeypatch):
     for name in (
         "PHOENIX_CLOUD_BASE_URL",
         "PHOENIX_CLOUD_API_KEY",
@@ -36,10 +35,11 @@ def test_gemini_api_key_is_loaded_without_exposing_it(monkeypatch):
 
     settings = Settings.from_env()
 
-    assert settings.cloud_api_key == "test-gemini-key"
+    assert settings.cloud_api_key == ""
+    assert settings.gemini_api_key == "test-gemini-key"
 
 
-def test_explicit_cloud_settings_can_override_gemini_defaults(monkeypatch):
+def test_explicit_cloud_settings_can_override_openrouter_defaults(monkeypatch):
     monkeypatch.setenv("PHOENIX_CLOUD_BASE_URL", "https://custom.example/v1/")
     monkeypatch.setenv("PHOENIX_CLOUD_MODEL", "custom-model")
     monkeypatch.setenv("PHOENIX_CLOUD_API_KEY", "custom-key")
