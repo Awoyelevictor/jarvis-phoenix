@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 
 from app.assistant import Assistant
 from app.config import Settings
+from app.devices import DeviceError, DeviceRegistry
 from app.providers import ProviderError
 from app.speech import GeminiSpeechProvider
 
@@ -24,6 +25,7 @@ MAX_SPEECH_CHARS = 6000
 
 def make_handler(assistant: Assistant):
     speech = GeminiSpeechProvider(assistant.settings)
+    devices = DeviceRegistry()
 
     class UltronHandler(BaseHTTPRequestHandler):
         server_version = "ULTRON/0.3"
@@ -81,7 +83,18 @@ def make_handler(assistant: Assistant):
             if route == "/healthz":
                 self._json(200, {"ok": True, "service": "ULTRON"})
                 return
+            if route == "/api/device/commands":
+                token = self.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+                try:
+                    command = devices.claim_next(token)
+                    self._json(200, {"command": command})
+                except DeviceError as exc:
+                    self._json(401, {"error": str(exc)})
+                return
             if not self._authorize():
+                return
+            if route == "/api/devices":
+                self._json(200, {"devices": devices.list_devices()})
                 return
             if route == "/api/status":
                 # Keep startup status local and fast. Ollama is optional and
@@ -146,9 +159,11 @@ def make_handler(assistant: Assistant):
             self._send(200, target.read_bytes(), f"{content_type}; charset=utf-8", "no-cache" if target.name == "index.html" else "public, max-age=3600")
 
         def do_POST(self) -> None:
-            if not self._authorize():
-                return
             route = urlparse(self.path).path
+            # Pairing is the only unauthenticated POST route; it requires a
+            # short-lived, one-time code created by the authenticated owner.
+            if route != "/api/devices/pair" and not self._authorize():
+                return
             try:
                 body = self._read_json()
             except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -157,6 +172,57 @@ def make_handler(assistant: Assistant):
 
             if not isinstance(body, dict):
                 self._json(400, {"error": "Invalid request body."})
+                return
+
+            if route == "/api/devices/pair":
+                try:
+                    paired = devices.pair(
+                        str(body.get("code", "")),
+                        str(body.get("name", "")),
+                        str(body.get("platform", "")),
+                    )
+                    self._json(201, paired)
+                except DeviceError as exc:
+                    self._json(400, {"error": str(exc)})
+                return
+
+            if route == "/api/devices/pairing":
+                try:
+                    pairing = devices.create_pairing_code(int(body.get("ttl_seconds", 300)))
+                    self._json(201, pairing)
+                except (TypeError, ValueError, DeviceError) as exc:
+                    self._json(400, {"error": str(exc)})
+                return
+
+            if route == "/api/devices/heartbeat":
+                token = self.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+                try:
+                    self._json(200, devices.heartbeat(token))
+                except DeviceError as exc:
+                    self._json(401, {"error": str(exc)})
+                return
+
+            if route == "/api/devices/commands":
+                try:
+                    command = body.get("command")
+                    device_id = body.get("device_id")
+                    if not isinstance(command, str) or not isinstance(device_id, str):
+                        raise DeviceError("Device ID and command are required.")
+                    queued = devices.enqueue(device_id, command, body.get("payload"))
+                    self._json(202, queued)
+                except DeviceError as exc:
+                    self._json(400, {"error": str(exc)})
+                return
+
+            if route == "/api/devices/commands/complete":
+                token = self.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+                try:
+                    completed = devices.complete(
+                        token, str(body.get("command_id", "")), body.get("result", {})
+                    )
+                    self._json(200 if completed else 404, {"ok": completed})
+                except DeviceError as exc:
+                    self._json(401, {"error": str(exc)})
                 return
 
             if route == "/api/reset":
@@ -276,6 +342,10 @@ def make_handler(assistant: Assistant):
             if not self._authorize():
                 return
             route = urlparse(self.path).path
+            if route.startswith("/api/devices/"):
+                device_id = route.rsplit("/", 1)[-1]
+                self._json(200, {"ok": devices.revoke(device_id)})
+                return
             if route != "/api/memory":
                 self._json(404, {"error": "Not found"})
                 return
