@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 import json
 from urllib.error import HTTPError, URLError
+from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 
 from app.config import Settings
@@ -95,23 +96,30 @@ class GeminiSpeechProvider:
                 "and ULTRON_VOICE_API_KEY. No alternative TTS provider is enabled."
             )
 
-        gateway_url = self.settings.voice_api_url.rstrip("/") + "/speak"
-        gateway_payload = {
-            "text": text[:2000],
-            "lang": "eng",
-        }
+        endpoint_path = (self.settings.voice_api_path or "/v1/speech").strip()
+        if not endpoint_path.startswith("/"):
+            endpoint_path = "/" + endpoint_path
+        gateway_url = self.settings.voice_api_url.rstrip("/") + endpoint_path
+        gateway_payload = {"text": text[:1000], "lang": "eng"}
         gateway_request = Request(
             gateway_url,
             data=json.dumps(gateway_payload).encode("utf-8"),
             headers={
                 "Content-Type": "application/json",
-                "Accept": "audio/wav",
-                "X-API-Key": self.settings.voice_api_key,
+                "Accept": "application/json",
+                "Authorization": f"Bearer {self.settings.voice_api_key}",
             },
             method="POST",
         )
+        timeout = max(self.settings.request_timeout, 300)
         try:
-            with urlopen(gateway_request, timeout=max(self.settings.request_timeout, 300)) as response:
+            with urlopen(gateway_request, timeout=timeout) as response:
+                result = json.loads(response.read().decode("utf-8"))
+            audio_url = result.get("audio_url") if isinstance(result, dict) else None
+            if not isinstance(audio_url, str) or not audio_url.strip():
+                raise ProviderError("SONIVOX response did not include an audio_url.")
+            audio_request = Request(urljoin(gateway_url, audio_url), headers={"Accept": "audio/wav"}, method="GET")
+            with urlopen(audio_request, timeout=timeout) as response:
                 audio_bytes = response.read()
         except HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
@@ -121,12 +129,10 @@ class GeminiSpeechProvider:
             except (ValueError, TypeError):
                 pass
             detail = " ".join(str(detail).split())[:900]
-            raise ProviderError(
-                f"ULTRON Voice API failed (HTTP {exc.code}): {detail}"
-            ) from exc
-        except (URLError, TimeoutError, OSError) as exc:
-            raise ProviderError(f"ULTRON Voice API connection failed: {exc}") from exc
+            raise ProviderError(f"SONIVOX speech request failed (HTTP {exc.code}): {detail}") from exc
+        except (URLError, TimeoutError, OSError, ValueError) as exc:
+            raise ProviderError(f"SONIVOX speech connection failed: {exc}") from exc
 
         if not audio_bytes or not audio_bytes.startswith(b"RIFF"):
-            raise ProviderError("ULTRON Voice API returned invalid WAV audio.")
+            raise ProviderError("SONIVOX audio download was empty or not a valid WAV file.")
         return base64.b64encode(audio_bytes).decode("ascii"), "audio/wav"
