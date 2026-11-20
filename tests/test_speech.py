@@ -68,28 +68,35 @@ def test_openrouter_empty_transcript_is_reported(monkeypatch):
         provider.transcribe(base64.b64encode(b"audio").decode(), "audio/webm")
 
 
-def test_ultron_voice_api_returns_wav(monkeypatch):
-    captured = {}
+def test_sonivox_developer_api_returns_audio_from_signed_url(monkeypatch):
+    calls = []
 
     def fake_urlopen(request, timeout):
-        captured["url"] = request.full_url
-        captured["payload"] = json.loads(request.data.decode())
-        captured["api_key"] = request.get_header("X-api-key")
+        calls.append((request.full_url, request.get_method(), timeout))
+        if request.get_method() == "POST":
+            assert request.get_header("Authorization") == "Bearer voice-test"
+            assert request.get_header("Accept") == "application/json"
+            assert json.loads(request.data.decode()) == {
+                "text": "Systems online.", "lang": "eng"
+            }
+            return FakeResponse({"id": "generation-1", "audio_url": "https://storage.example.test/signed.wav"})
         return FakeResponse(b"RIFFfake-wav-data", "audio/wav")
 
     monkeypatch.setattr("app.speech.urlopen", fake_urlopen)
     provider = GeminiSpeechProvider(Settings(
         voice_api_url="https://voice.example.test",
         voice_api_key="voice-test",
+        voice_api_path="/v1/speech",
     ))
     audio, mime_type = provider.synthesize("Systems online.")
 
     assert base64.b64decode(audio) == b"RIFFfake-wav-data"
     assert mime_type == "audio/wav"
-    assert captured["url"] == "https://voice.example.test/speak"
-    assert captured["api_key"] == "voice-test"
-    assert captured["payload"]["text"] == "Systems online."
-    assert captured["payload"]["lang"] == "eng"
+    assert calls[0][0] == "https://voice.example.test/v1/speech"
+    assert calls[0][1] == "POST"
+    assert calls[1][0] == "https://storage.example.test/signed.wav"
+    assert calls[1][1] == "GET"
+    assert all(call[2] >= 300 for call in calls)
 
 
 def test_ultron_voice_api_requires_configuration():
