@@ -67,31 +67,30 @@ def test_gemini_empty_transcript_is_reported():
         speech_module.urlopen = original
 
 
-def test_elevenlabs_speech_returns_mp3(monkeypatch):
+def test_ultron_voice_api_returns_wav(monkeypatch):
     captured = {}
 
     def fake_urlopen(request, timeout):
         captured["url"] = request.full_url
         captured["payload"] = json.loads(request.data.decode())
-        captured["api_key"] = request.get_header("Xi-api-key")
-        return FakeResponse(b"ID3fake-mp3", "audio/mpeg")
+        captured["api_key"] = request.get_header("X-api-key")
+        return FakeResponse(b"RIFFfake-wav-data", "audio/wav")
 
     monkeypatch.setattr("app.speech.urlopen", fake_urlopen)
     provider = GeminiSpeechProvider(Settings(
-        elevenlabs_api_key="eleven-test",
-        elevenlabs_voice_id="voice-123",
-        elevenlabs_model_id="eleven_turbo_v2_5",
+        voice_api_url="https://voice.example.test",
+        voice_api_key="voice-test",
     ))
     audio, mime_type = provider.synthesize("Systems online.")
 
-    assert base64.b64decode(audio) == b"ID3fake-mp3"
-    assert mime_type == "audio/mpeg"
-    assert captured["url"].startswith("https://api.elevenlabs.io/v1/text-to-speech/voice-123")
-    assert captured["api_key"] == "eleven-test"
+    assert base64.b64decode(audio) == b"RIFFfake-wav-data"
+    assert mime_type == "audio/wav"
+    assert captured["url"] == "https://voice.example.test/speak"
+    assert captured["api_key"] == "voice-test"
     assert captured["payload"]["text"] == "Systems online."
-    assert captured["payload"]["model_id"] == "eleven_turbo_v2_5"
+    assert captured["payload"]["lang"] == "eng"
 
 
-def test_elevenlabs_speech_requires_api_key():
-    with pytest.raises(ProviderError, match="ELEVENLABS_API_KEY"):
+def test_ultron_voice_api_requires_configuration():
+    with pytest.raises(ProviderError, match="ULTRON_VOICE_API_KEY"):
         GeminiSpeechProvider(Settings()).synthesize("Hello")
