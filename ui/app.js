@@ -511,12 +511,18 @@ async function speak(text) {
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
     const audioBuffer = await audioContext.decodeAudioData(bytes.buffer);
+    if (!audioBuffer.duration || !audioBuffer.length) throw new Error("SONIVOX returned an empty audio clip.");
+    // Android browsers can produce silent output through a compressed WebAudio
+    // chain after microphone capture. Keep the visual analyser, but route the
+    // actual signal directly through the gain node to the media output.
+    if (audioContext.state !== "running") await audioContext.resume();
+    if (audioContext.state !== "running") throw new Error("Audio output is suspended. Tap the screen and try again.");
     activeSpeechText = text;
     playbackSource = audioContext.createBufferSource();
     const source = playbackSource;
     source.buffer = audioBuffer;
     source.connect(analyser);
-    source.connect(playbackCompressor);
+    source.connect(playbackGain);
     source.onended = () => {
       if (playbackSource !== source) return;
       playbackSource = null;
@@ -526,9 +532,9 @@ async function speak(text) {
       if (sessionActive && !busy) setMode("listening", "LISTENING", "I'm listening. Speak naturally.");
       else if (!sessionActive) setMode("standby", "SYSTEM STANDBY", "Text channel active.");
     };
-    setMode("speaking", "ULTRON IS SPEAKING", "Speak at any time to interrupt.");
     $("control-caption").textContent = "ULTRON VOICE API · MEDIA SPEAKER";
-    source.start();
+    source.start(0);
+    setMode("speaking", "ULTRON IS SPEAKING", "Speak at any time to interrupt.");
     animateAudio();
   } catch (error) {
     await resumeMicrophoneAfterSpeech();
